@@ -109,6 +109,29 @@ function App() {
     }
   }
 
+  function drawCells(canvas: HTMLCanvasElement, universe: Universe) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const w = universe.width()
+    const h = universe.height()
+    const memory = wasmMemoryRef.current
+    if (!memory) return
+
+    const cells = new Uint8Array(memory.buffer, universe.cells_ptr(), w * h)
+
+    ctx.fillStyle = '#07070d'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    for (let row = 0; row < h; row++) {
+      for (let col = 0; col < w; col++) {
+        if (cells[row * w + col] === 0) continue
+        const a = 0.35 + Math.random() * 0.35
+        ctx.fillStyle = `rgba(${ALIVE_BASE[0]},${ALIVE_BASE[1]},${ALIVE_BASE[2]},${a})`
+        ctx.fillRect(col * STEP, row * STEP, CELL_SIZE, CELL_SIZE)
+      }
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -168,29 +191,6 @@ function App() {
     loadWasm()
     return () => { cancelled = true; cancelAnimationFrame(frameRef.current) }
   }, [])
-
-  function drawCells(canvas: HTMLCanvasElement, universe: Universe) {
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const w = universe.width()
-    const h = universe.height()
-    const memory = wasmMemoryRef.current
-    if (!memory) return
-
-    const cells = new Uint8Array(memory.buffer, universe.cells_ptr(), w * h)
-
-    ctx.fillStyle = '#07070d'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    for (let row = 0; row < h; row++) {
-      for (let col = 0; col < w; col++) {
-        if (cells[row * w + col] === 0) continue
-        const a = 0.35 + Math.random() * 0.35
-        ctx.fillStyle = `rgba(${ALIVE_BASE[0]},${ALIVE_BASE[1]},${ALIVE_BASE[2]},${a})`
-        ctx.fillRect(col * STEP, row * STEP, CELL_SIZE, CELL_SIZE)
-      }
-    }
-  }
 
   const handleRerun = () => {
     const universe = universeRef.current
