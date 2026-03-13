@@ -237,11 +237,16 @@ mod tests {
         assert!(!validate_mnemonic("not a valid mnemonic phrase at all"));
     }
 
+    // Tests that use JsValue (derive_address, generate_mnemonic) only work
+    // in wasm32 targets. They panic in native tests because JsValue has no
+    // native implementation.
+    #[cfg(target_arch = "wasm32")]
     #[test]
     fn test_derive_address_invalid_mnemonic() {
         assert!(derive_address("bad phrase").is_err());
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[test]
     fn test_derive_address_valid_mnemonic() {
         // 24-word test vector (BIP-39 standard test mnemonic)
