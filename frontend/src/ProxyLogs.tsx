@@ -1,54 +1,44 @@
-import { useEffect, useRef, useState } from 'react'
-
-interface LogEntry {
-  id: number
-  time: string
-  method: string
-  url: string
-  status: number | null
-  duration: number | null
-  error: string | null
-}
+import { useEffect, useRef, useState, useCallback } from 'react'
+import type { ProxyLogEntry } from './proxyLogger'
 
 const PROXY_ROUTES = ['/fog', '/consensus']
+const CHANNEL_NAME = 'proxy-logs'
 
 export default function ProxyLogs() {
-  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [logs, setLogs] = useState<ProxyLogEntry[]>([])
   const [autoScroll, setAutoScroll] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const idRef = useRef(0)
+
+  const handleEntry = useCallback((entry: ProxyLogEntry) => {
+    setLogs(prev => {
+      // Update existing entry (status filled in) or append new
+      const idx = prev.findIndex(e => e.id === entry.id)
+      if (idx !== -1) {
+        const next = [...prev]
+        next[idx] = entry
+        return next
+      }
+      return [...prev.slice(-199), entry]
+    })
+  }, [])
 
   useEffect(() => {
-    const originalFetch = window.fetch
+    // Listen for same-tab events (from the global interceptor in main.tsx)
+    const onLocal = (e: Event) => handleEntry((e as CustomEvent).detail)
+    window.addEventListener('proxy-log', onLocal)
 
-    window.fetch = async function patchedFetch(input, init) {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
-      const isProxy = PROXY_ROUTES.some(r => url.startsWith(r))
+    // Listen for cross-tab events via BroadcastChannel
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel(CHANNEL_NAME)
+      channel.onmessage = (e) => handleEntry(e.data)
+    } catch { /* BroadcastChannel unsupported */ }
 
-      if (!isProxy) return originalFetch(input, init)
-
-      const id = ++idRef.current
-      const method = init?.method?.toUpperCase() || 'GET'
-      const time = new Date().toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 3 })
-      const start = performance.now()
-
-      setLogs(prev => [...prev.slice(-199), { id, time, method, url, status: null, duration: null, error: null }])
-
-      try {
-        const res = await originalFetch(input, init)
-        const duration = Math.round(performance.now() - start)
-        setLogs(prev => prev.map(e => e.id === id ? { ...e, status: res.status, duration } : e))
-        return res
-      } catch (err) {
-        const duration = Math.round(performance.now() - start)
-        const error = err instanceof Error ? err.message : String(err)
-        setLogs(prev => prev.map(e => e.id === id ? { ...e, status: 0, duration, error } : e))
-        throw err
-      }
+    return () => {
+      window.removeEventListener('proxy-log', onLocal)
+      channel?.close()
     }
-
-    return () => { window.fetch = originalFetch }
-  }, [])
+  }, [handleEntry])
 
   useEffect(() => {
     if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -166,7 +156,7 @@ export default function ProxyLogs() {
         padding: '6px 16px', borderTop: '1px solid #1a3a1a',
         fontSize: '0.68rem', opacity: 0.3, flexShrink: 0,
       }}>
-        {logs.length} entries · intercepting window.fetch → {PROXY_ROUTES.join(', ')}
+        {logs.length} entries · listening on all tabs → {PROXY_ROUTES.join(', ')}
       </div>
     </div>
   )

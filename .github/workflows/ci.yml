@@ -21,7 +21,12 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM module
-        run: wasm-pack build crates/wallet-core --target web --out-dir ../../packages/wallet-core-wasm
+        run: wasm-pack build crates/wallet-core --target web --out-dir ../../frontend/src/wasm
+
+      - name: Copy WASM binary to public
+        run: |
+          mkdir -p frontend/public/wasm
+          cp frontend/src/wasm/wallet_core_bg.wasm frontend/public/wasm/wallet_core_bg.wasm
 
       - name: Run Rust tests
         run: cargo test --workspace
@@ -30,7 +35,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wallet-core-wasm
-          path: packages/wallet-core-wasm/
+          path: |
+            frontend/src/wasm/
+            frontend/public/wasm/
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -41,13 +48,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
       - name: Download WASM artifact
         uses: actions/download-artifact@v4
         with:
           name: wallet-core-wasm
-          path: packages/wallet-core-wasm/
 
       - name: Install frontend dependencies
         working-directory: frontend
