@@ -9,7 +9,7 @@ const REVEAL_RADIUS = 300
 const LERP_SPEED = 0.08
 
 function App() {
-  const [wasmStatus, setWasmStatus] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [wasmStatus, setWasmStatus] = useState<'loading' | 'ok' | 'error' | 'killed'>('loading')
   const [wasmVersion, setWasmVersion] = useState('')
   const [wasmError, setWasmError] = useState('')
   const [generation, setGeneration] = useState(0)
@@ -21,6 +21,7 @@ function App() {
   const universeRef = useRef<Universe | null>(null)
   const runningRef = useRef(true)
   const genRef = useRef(0)
+  const frameRef = useRef(0)
   const mouseTarget = useRef({ x: -9999, y: -9999 })
   const mouseCurrent = useRef({ x: -9999, y: -9999 })
   const mouseActive = useRef(false)
@@ -110,7 +111,6 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
-    let frameId = 0
 
     async function loadWasm() {
       try {
@@ -138,17 +138,25 @@ function App() {
         genRef.current = 0
         const renderLoop = () => {
           if (cancelled) return
+          const u = universeRef.current
+          if (!u) {
+            // WASM killed — clear canvas
+            const ctx = canvas.getContext('2d')
+            if (ctx) { ctx.fillStyle = '#07070d'; ctx.fillRect(0, 0, canvas.width, canvas.height) }
+            frameRef.current = requestAnimationFrame(renderLoop)
+            return
+          }
           if (runningRef.current) {
-            universe.tick()
+            u.tick()
             genRef.current++
             if (genRef.current % 2 === 0) setGeneration(genRef.current)
           }
-          drawCells(canvas, universe)
-          frameId = requestAnimationFrame(renderLoop)
+          drawCells(canvas, u)
+          frameRef.current = requestAnimationFrame(renderLoop)
         }
 
         drawCells(canvas, universe)
-        frameId = requestAnimationFrame(renderLoop)
+        frameRef.current = requestAnimationFrame(renderLoop)
       } catch (err) {
         if (cancelled) return
         const message = err instanceof Error ? err.message : String(err)
@@ -158,7 +166,7 @@ function App() {
       }
     }
     loadWasm()
-    return () => { cancelled = true; cancelAnimationFrame(frameId) }
+    return () => { cancelled = true; cancelAnimationFrame(frameRef.current) }
   }, [])
 
   function drawCells(canvas: HTMLCanvasElement, universe: Universe) {
@@ -195,8 +203,37 @@ function App() {
     }
   }
 
+  const handleToggleWasm = () => {
+    if (wasmStatus === 'ok') {
+      // Kill: free the Universe, null it out
+      const universe = universeRef.current
+      if (universe) {
+        universe.free()
+        universeRef.current = null
+      }
+      setWasmStatus('killed')
+      setRunning(false)
+      console.log('[wallet-core] WASM instance killed')
+    } else if (wasmStatus === 'killed') {
+      // Revive: re-create Universe from existing WASM memory
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const cols = Math.floor(window.innerWidth / STEP)
+      const rows = Math.floor(window.innerHeight / STEP)
+      const universe = Universe.new(cols, rows)
+      universeRef.current = universe
+      genRef.current = 0
+      setGeneration(0)
+      setRunning(true)
+      setWasmStatus('ok')
+      console.log('[wallet-core] WASM instance revived')
+    }
+  }
+
   const statusDot = wasmStatus === 'ok'
-    ? { color: '#4ade80', label: 'Game of Life loaded from .wasm package' }
+    ? { color: '#4ade80', label: 'wasm dreaming the game of life' }
+    : wasmStatus === 'killed'
+    ? { color: '#f85149', label: 'wasm killed — tap to revive' }
     : wasmStatus === 'error'
     ? { color: '#f85149', label: `Failed: ${wasmError}` }
     : { color: '#666', label: 'Loading WASM...' }
@@ -263,16 +300,29 @@ function App() {
           backgroundClip: 'text',
           padding: '0.1em 0',
         }}>
-          Dreamer's DEX
+          Demo Dream
         </h1>
-        <p style={{
-          color: 'rgba(200,200,200,0.4)', fontSize: 'clamp(0.6rem, 2.5vw, 1.1rem)',
-          marginTop: 'clamp(0.2rem, 0.5vw, 0.4rem)', marginBottom: 'clamp(0.3rem, 0.5vw, 0.5rem)',
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase', fontWeight: 300,
-        }}>
-          MobileCoin Web Wallet
-        </p>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          marginTop: 'clamp(0.3rem, 0.8vw, 0.5rem)', marginBottom: 'clamp(0.3rem, 0.5vw, 0.5rem)',
+          pointerEvents: 'auto', cursor: (wasmStatus === 'ok' || wasmStatus === 'killed') ? 'pointer' : 'default',
+        }}
+          onClick={handleToggleWasm}
+          title={wasmStatus === 'ok' ? 'Click to kill WASM instance' : wasmStatus === 'killed' ? 'Click to revive' : undefined}
+        >
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: statusDot.color, flexShrink: 0,
+            boxShadow: `0 0 6px ${statusDot.color}`,
+          }} />
+          <span style={{
+            color: 'rgba(200,200,200,0.4)', fontSize: 'clamp(0.6rem, 2.5vw, 1.1rem)',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase', fontWeight: 300,
+          }}>
+            wasm dreaming the game of life for js
+          </span>
+        </div>
 
         {/* Gen counter */}
         <span style={{
@@ -347,12 +397,7 @@ function App() {
               textAlign: 'left',
             }}
           >
-            <span style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: statusDot.color, flexShrink: 0,
-              boxShadow: `0 0 6px ${statusDot.color}`,
-            }} />
-            <span style={{ flex: 1 }}>{statusDot.label}</span>
+            <span style={{ flex: 1 }}>Details</span>
             <span style={{
               transition: 'transform 0.25s',
               transform: panelOpen ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -379,6 +424,7 @@ function App() {
               padding: 'clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2.5vw, 2rem)',
               boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
             }}>
+
               {wasmVersion && (
                 <div style={{
                   fontSize: '0.72rem', color: 'rgba(200,200,200,0.3)',
