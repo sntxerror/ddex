@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { ProxyLogEntry } from './proxyLogger'
+import { type ProxyLogEntry, PROXY_ROUTES, getProxyBase } from './proxyLogger'
 
-const PROXY_ROUTES = ['/fog', '/consensus']
 const CHANNEL_NAME = 'proxy-logs'
 
 export default function ProxyLogs() {
@@ -156,7 +155,7 @@ export default function ProxyLogs() {
         padding: '6px 16px', borderTop: '1px solid #1a3a1a',
         fontSize: '0.68rem', opacity: 0.3, flexShrink: 0,
       }}>
-        {logs.length} entries · listening on all tabs → {PROXY_ROUTES.join(', ')}
+        {logs.length} entries · {getProxyBase() || 'local proxy'} → {PROXY_ROUTES.join(', ')}
       </div>
     </div>
   )
