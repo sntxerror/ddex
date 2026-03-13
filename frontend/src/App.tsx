@@ -441,6 +441,14 @@ function App() {
                 Each cell computed in Rust/WASM. Canvas reads linear memory directly.
                 Click or touch to spawn cells. Move cursor to reveal the simulation.
               </p>
+              <a href="https://github.com/sntxerror/ddex" target="_blank" rel="noopener"
+                style={{
+                  display: 'inline-block', marginTop: '0.75rem',
+                  fontSize: '0.72rem', color: 'rgba(192,132,252,0.5)',
+                  textDecoration: 'none',
+                }}>
+                github.com/sntxerror/ddex
+              </a>
             </div>
           </div>
         </div>
