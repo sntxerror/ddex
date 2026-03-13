@@ -82,6 +82,19 @@ export default function ProxyLogs() {
           {PROXY_ROUTES.join(' · ')}
         </span>
         <span style={{ flex: 1 }} />
+        {PROXY_ROUTES.map(route => (
+          <button
+            key={route}
+            onClick={() => { fetch(route + '/').catch(() => {}) }}
+            style={{
+              background: 'none', border: '1px solid #1a3a1a', color: '#a78bfa',
+              padding: '4px 10px', borderRadius: '4px', cursor: 'pointer',
+              fontSize: '0.72rem', opacity: 0.6,
+            }}
+          >
+            ping {route}
+          </button>
+        ))}
         <label style={{ fontSize: '0.72rem', opacity: 0.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <input
             type="checkbox"
@@ -109,7 +122,7 @@ export default function ProxyLogs() {
           <div style={{ opacity: 0.3, padding: '2rem 0', textAlign: 'center', fontSize: '0.8rem' }}>
             waiting for proxy requests...<br />
             <span style={{ fontSize: '0.7rem' }}>
-              fetch calls to {PROXY_ROUTES.join(' or ')} will appear here
+              tap <span style={{ color: '#a78bfa' }}>ping</span> above to test, or fetch {PROXY_ROUTES.join(' / ')} from console
             </span>
           </div>
         )}
