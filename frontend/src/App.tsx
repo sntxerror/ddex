@@ -14,7 +14,7 @@ function App() {
   const [wasmError, setWasmError] = useState('')
   const [generation, setGeneration] = useState(0)
   const [running, setRunning] = useState(true)
-  const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 600)
+  const [openPanel, setOpenPanel] = useState<'details' | 'proxies' | null>(() => window.innerWidth > 600 ? 'details' : null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const blurRef = useRef<HTMLDivElement>(null)
   const wasmMemoryRef = useRef<WebAssembly.Memory | null>(null)
@@ -285,7 +285,7 @@ function App() {
         position: 'relative', zIndex: 10,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         minHeight: '100vh',
-        paddingTop: 'clamp(15vh, 20vh, 28vh)',
+        paddingTop: 'clamp(8vh, 12vh, 20vh)',
         paddingLeft: 'clamp(0.75rem, 3vw, 2rem)',
         paddingRight: 'clamp(0.75rem, 3vw, 2rem)',
         paddingBottom: 'clamp(0.5rem, 2vw, 1.5rem)',
@@ -329,7 +329,7 @@ function App() {
           fontSize: 'clamp(0.68rem, 2vw, 0.85rem)',
           color: 'rgba(192,132,252,0.5)',
           fontVariantNumeric: 'tabular-nums',
-          marginBottom: 'clamp(0.6rem, 1.5vw, 1.2rem)',
+          marginBottom: 'clamp(0.4rem, 1vw, 0.8rem)',
         }}>
           Gen {generation}
         </span>
@@ -339,7 +339,7 @@ function App() {
           display: 'flex', gap: 'clamp(0.5rem, 1.5vw, 0.75rem)', flexWrap: 'wrap',
           justifyContent: 'center',
           pointerEvents: 'auto',
-          marginBottom: 'clamp(0.8rem, 2vw, 1.5rem)',
+          marginBottom: 'clamp(0.5rem, 1.2vw, 1rem)',
         }}>
           <button
             onClick={() => setRunning(r => !r)}
@@ -382,13 +382,13 @@ function App() {
         }}>
           {/* Toggle button */}
           <button
-            onClick={() => setPanelOpen(o => !o)}
+            onClick={() => setOpenPanel(o => o === 'details' ? null : 'details')}
             style={{
               display: 'flex', alignItems: 'center', gap: '0.5rem',
-              width: '100%', padding: '10px 16px',
-              borderRadius: panelOpen ? '16px 16px 0 0' : '16px',
+              width: '100%', padding: '8px 14px',
+              borderRadius: openPanel === 'details' ? '14px 14px 0 0' : '14px',
               border: '1px solid rgba(255,255,255,0.07)',
-              borderBottom: panelOpen ? '1px solid rgba(255,255,255,0.04)' : undefined,
+              borderBottom: openPanel === 'details' ? '1px solid rgba(255,255,255,0.04)' : undefined,
               background: 'rgba(255,255,255,0.035)',
               backdropFilter: 'blur(24px) saturate(1.3)',
               WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
@@ -400,7 +400,7 @@ function App() {
             <span style={{ flex: 1 }}>Details</span>
             <span style={{
               transition: 'transform 0.25s',
-              transform: panelOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transform: openPanel === 'details' ? 'rotate(180deg)' : 'rotate(0deg)',
               fontSize: '0.7rem', color: 'rgba(200,200,200,0.4)',
             }}>
               ▼
@@ -409,26 +409,27 @@ function App() {
 
           {/* Collapsible body */}
           <div style={{
-            overflow: 'hidden',
-            maxHeight: panelOpen ? '400px' : '0px',
-            opacity: panelOpen ? 1 : 0,
-            transition: 'max-height 0.35s ease, opacity 0.25s ease',
+            display: 'grid',
+            gridTemplateRows: openPanel === 'details' ? '1fr' : '0fr',
+            opacity: openPanel === 'details' ? 1 : 0,
+            transition: 'grid-template-rows 0.3s ease, opacity 0.2s ease',
           }}>
+            <div style={{ overflow: 'hidden' }}>
             <div style={{
               background: 'rgba(255,255,255,0.035)',
               backdropFilter: 'blur(24px) saturate(1.3)',
               WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
               border: '1px solid rgba(255,255,255,0.07)',
               borderTop: 'none',
-              borderRadius: '0 0 16px 16px',
-              padding: 'clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2.5vw, 2rem)',
+              borderRadius: '0 0 14px 14px',
+              padding: 'clamp(0.6rem, 1.5vw, 1rem) clamp(0.8rem, 2vw, 1.5rem)',
               boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
             }}>
 
               {wasmVersion && (
                 <div style={{
                   fontSize: '0.72rem', color: 'rgba(200,200,200,0.3)',
-                  marginBottom: '1rem',
+                  marginBottom: '0.4rem',
                 }}>
                   wallet-core v{wasmVersion} · wasm-bindgen · Rust → wasm32
                 </div>
@@ -436,27 +437,107 @@ function App() {
 
               <p style={{
                 fontSize: '0.78rem', color: 'rgba(200,200,200,0.3)',
-                margin: 0, lineHeight: 1.6,
+                margin: 0, lineHeight: 1.5,
               }}>
                 Each cell computed in Rust/WASM. Canvas reads linear memory directly.
                 Click or touch to spawn cells. Move cursor to reveal the simulation.
               </p>
               <a href="https://github.com/sntxerror/ddex" target="_blank" rel="noopener"
                 style={{
-                  display: 'inline-block', marginTop: '0.75rem',
+                  display: 'inline-block', marginTop: '0.4rem',
                   fontSize: '0.72rem', color: 'rgba(192,132,252,0.5)',
                   textDecoration: 'none',
                 }}>
                 github.com/sntxerror/ddex
               </a>
             </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Foldable proxies panel */}
+        <div style={{
+          pointerEvents: 'auto',
+          maxWidth: 'min(420px, 92vw)', width: '100%',
+          marginTop: '0.35rem',
+        }}>
+          <button
+            onClick={() => setOpenPanel(o => o === 'proxies' ? null : 'proxies')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              width: '100%', padding: '8px 14px',
+              borderRadius: openPanel === 'proxies' ? '14px 14px 0 0' : '14px',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderBottom: openPanel === 'proxies' ? '1px solid rgba(255,255,255,0.04)' : undefined,
+              background: 'rgba(255,255,255,0.035)',
+              backdropFilter: 'blur(24px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+              color: '#e5e5e5', cursor: 'pointer', fontSize: '0.82rem',
+              fontWeight: 500, transition: 'border-radius 0.25s',
+              textAlign: 'left',
+            }}
+          >
+            <span style={{ flex: 1 }}>Show Proxies</span>
+            <span style={{
+              transition: 'transform 0.25s',
+              transform: openPanel === 'proxies' ? 'rotate(180deg)' : 'rotate(0deg)',
+              fontSize: '0.7rem', color: 'rgba(200,200,200,0.4)',
+            }}>
+              ▼
+            </span>
+          </button>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateRows: openPanel === 'proxies' ? '1fr' : '0fr',
+            opacity: openPanel === 'proxies' ? 1 : 0,
+            transition: 'grid-template-rows 0.3s ease, opacity 0.2s ease',
+          }}>
+            <div style={{ overflow: 'hidden' }}>
+            <div style={{
+              background: 'rgba(255,255,255,0.035)',
+              backdropFilter: 'blur(24px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderTop: 'none',
+              borderRadius: '0 0 14px 14px',
+              padding: 'clamp(0.5rem, 1.5vw, 0.8rem) clamp(0.8rem, 2vw, 1.2rem)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
+              fontSize: '0.75rem', lineHeight: 1.5,
+            }}>
+              <div style={{ display: 'flex', gap: 'clamp(0.5rem, 2vw, 1.5rem)', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 45%', minWidth: '140px' }}>
+                  <div style={{ color: 'rgba(200,200,200,0.5)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.68rem', marginBottom: '0.2rem' }}>
+                    Fog Gateway
+                  </div>
+                  <div><span style={{ color: 'rgba(200,200,200,0.3)' }}>upstream </span><span style={{ color: 'rgba(200,200,200,0.2)' }}>fog.test.mobilecoin.com</span></div>
+                  <div><span style={{ color: 'rgba(200,200,200,0.3)' }}>envoy </span><a href="/fog" style={{ color: 'rgba(192,132,252,0.5)', textDecoration: 'none' }}>/fog</a></div>
+                </div>
+                <div style={{ flex: '1 1 45%', minWidth: '140px' }}>
+                  <div style={{ color: 'rgba(200,200,200,0.5)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.68rem', marginBottom: '0.2rem' }}>
+                    Consensus Node
+                  </div>
+                  <div><span style={{ color: 'rgba(200,200,200,0.3)' }}>upstream </span><span style={{ color: 'rgba(200,200,200,0.2)' }}>node1.test.mobilecoin.com</span></div>
+                  <div><span style={{ color: 'rgba(200,200,200,0.3)' }}>envoy </span><a href="/consensus" style={{ color: 'rgba(192,132,252,0.5)', textDecoration: 'none' }}>/consensus</a></div>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.3rem', fontSize: '0.68rem', color: 'rgba(200,200,200,0.2)' }}>
+                Envoy gRPC-Web proxy · localhost:8080 · Codespace
+              </div>
+              <div style={{ marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.4rem' }}>
+                <a href="/proxy-logs" style={{ color: 'rgba(192,132,252,0.5)', textDecoration: 'none', fontSize: '0.72rem' }}>
+                  /proxy-logs — interactive call log
+                </a>
+              </div>
+            </div>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
         <div style={{
-          marginTop: 'auto', paddingTop: 'clamp(1rem, 3vw, 2rem)',
-          paddingBottom: 'clamp(0.5rem, 2vw, 1rem)',
+          marginTop: 'auto', paddingTop: 'clamp(0.5rem, 1.5vw, 1rem)',
+          paddingBottom: 'clamp(0.3rem, 1vw, 0.5rem)',
           fontSize: '0.68rem',
           color: 'rgba(200,200,200,0.18)', pointerEvents: 'auto',
           textAlign: 'center',

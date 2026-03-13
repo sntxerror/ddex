@@ -5,19 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Proxy gRPC-Web requests to MobileCoin testnet Fog gateway
+      // Forward /fog and /consensus to local Envoy gRPC-Web proxy
       '/fog': {
-        target: 'https://fog.test.mobilecoin.com',
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
-        rewrite: (p) => p.replace(/^\/fog/, ''),
       },
-      // Proxy consensus node requests
       '/consensus': {
-        target: 'https://node1.test.mobilecoin.com',
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
-        rewrite: (p) => p.replace(/^\/consensus/, ''),
       },
     },
   },

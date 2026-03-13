@@ -1,0 +1,16 @@
+{
+  "name": "ddex",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "forwardPorts": [5173, 8080],
+  "portsAttributes": {
+    "5173": { "label": "Vite Dev", "onAutoForward": "openBrowser" },
+    "8080": { "label": "Envoy Proxy", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "cd frontend && npm install",
+  "postStartCommand": "cd proxy && docker compose up -d"
+}
