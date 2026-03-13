@@ -30,7 +30,10 @@ pub fn version() -> String {
 /// Uses browser WebCrypto via the `getrandom/js` bridge.
 #[wasm_bindgen]
 pub fn generate_mnemonic() -> Result<String, JsValue> {
-    let m = Mnemonic::generate_in(Language::English, 24)
+    let mut entropy = [0u8; 32]; // 32 bytes = 24 words
+    getrandom::getrandom(&mut entropy)
+        .map_err(|e| JsValue::from_str(&format!("entropy generation failed: {e}")))?;
+    let m = Mnemonic::from_entropy_in(Language::English, &entropy)
         .map_err(|e| JsValue::from_str(&format!("mnemonic generation failed: {e}")))?;
     Ok(m.to_string())
 }

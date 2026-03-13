@@ -9,9 +9,6 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-# Phase 0 test: cargo build --target wasm32-unknown-unknown --features mc-keys
-# Tests whether mc-account-keys itself compiles to WASM.
-mc-keys = ["dep:mc-account-keys"]
 
 [dependencies]
 wasm-bindgen = "0.2"
@@ -38,11 +35,6 @@ bs58 = { version = "0.5", default-features = false, features = ["alloc"] }
 
 # Hex encoding for debug output
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
-
-# ── Phase 0 WASM-feasibility gate ────────────────────────────────────────────
-# Enable with: cargo build --target wasm32-unknown-unknown --features mc-keys
-# Expected issues to document: SGX transitive deps, std::time, std::thread.
-mc-account-keys = { git = "https://github.com/mobilecoinfoundation/mobilecoin", tag = "v7.1.0", default-features = false, optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

@@ -21,7 +21,14 @@ export class Universe {
 }
 
 /**
- * Placeholder: will generate a BIP-39 mnemonic in Phase 0.
+ * Returns a JSON object { view_pub_hex, spend_pub_hex, address_b58 }
+ * or throws a JS error string on invalid mnemonic.
+ */
+export function derive_address(phrase: string): string;
+
+/**
+ * Generate a cryptographically random 24-word BIP-39 mnemonic.
+ * Uses browser WebCrypto via the `getrandom/js` bridge.
  */
 export function generate_mnemonic(): string;
 
@@ -29,6 +36,11 @@ export function generate_mnemonic(): string;
  * Initialize the wallet core module.
  */
 export function init(): string;
+
+/**
+ * Returns true if `phrase` is a valid BIP-39 English mnemonic.
+ */
+export function validate_mnemonic(phrase: string): boolean;
 
 /**
  * Returns the current version of the wallet core.
@@ -40,7 +52,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_universe_free: (a: number, b: number) => void;
-    readonly generate_mnemonic: () => [number, number];
+    readonly derive_address: (a: number, b: number) => [number, number, number, number];
+    readonly generate_mnemonic: () => [number, number, number, number];
     readonly init: () => [number, number];
     readonly universe_cells_ptr: (a: number) => number;
     readonly universe_height: (a: number) => number;
@@ -49,8 +62,14 @@ export interface InitOutput {
     readonly universe_spawn: (a: number, b: number, c: number, d: number) => void;
     readonly universe_tick: (a: number) => void;
     readonly universe_width: (a: number) => number;
+    readonly validate_mnemonic: (a: number, b: number) => number;
     readonly version: () => [number, number];
+    readonly __wbindgen_exn_store: (a: number) => void;
+    readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
