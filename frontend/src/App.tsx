@@ -14,7 +14,7 @@ function App() {
   const [wasmError, setWasmError] = useState('')
   const [generation, setGeneration] = useState(0)
   const [running, setRunning] = useState(true)
-  const [openPanel, setOpenPanel] = useState<'details' | 'proxies' | null>(() => window.innerWidth > 600 ? 'details' : null)
+  const [openPanel, setOpenPanel] = useState<'details' | 'proxies' | null>('details')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const blurRef = useRef<HTMLDivElement>(null)
   const wasmMemoryRef = useRef<WebAssembly.Memory | null>(null)
