@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MobileCoin Crypto WASM</title>
+</head>
+<body>
+    <button id="generate">Generate Mnemonic and Keys</button>
+    <pre id="out"></pre>
+
+    <script type="module">
+        import init, { generate_mnemonic, mnemonic_to_account_key } from './pkg/wasm.js';
+
+        (async () => {
+            await init();
+            document.getElementById('generate').addEventListener('click', async () => {
+                try {
+                    const mnemonic = generate_mnemonic();
+
+		    // TODO (kif): What are the legit values for fog_report_url and fog_authority_spki and what do they do?
+		    const account_keys = mnemonic_to_account_key(mnemonic, "", []);
+
+                    document.getElementById('out').textContent = `Mnemonic: ${mnemonic}
+View Private Key: ${account_keys.view_private_key}
+Spend Private Key: ${account_keys.spend_private_key}
+`;
+                } catch (e) {
+                    document.getElementById('out').textContent = 'Error: ' + e;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
