@@ -7,6 +7,7 @@ use sha2::Sha512;
 use merlin::Transcript as MerlinTranscript;
 use blake2::{Blake2b512, Digest};
 use bip39::Mnemonic;
+use crate::proto::encode_proto_bytes;
 use rand_core::SeedableRng;
 use rand_hc::Hc128Rng;
 use schnorrkel_og::{
@@ -205,7 +206,46 @@ pub fn derive_subaddress(account_key_js: JsValue, index: u64) -> Result<JsValue,
     Ok(serde_wasm_bindgen::to_value(&public_address)?)
 }
 
-fn main() {
-    let mnemonic = generate_mnemonic().unwrap_or("".to_string());
-    println!("{}", mnemonic)
+/// Wrap a 32-byte key in CompressedRistretto protobuf: { bytes data = 1 }
+fn wrap_compressed_ristretto(key: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(key.len() + 4);
+    encode_proto_bytes(&mut out, 1, key);
+    out
+}
+
+/// Get the default receive address as a MobileCoin b58-encoded string.
+///
+/// Encoding: PrintableWrapper protobuf → CRC32-ISO-HDLC → prepend 4-byte LE checksum → bs58
+#[wasm_bindgen]
+pub fn get_b58_address(account_key_js: JsValue) -> Result<String, JsError> {
+    let address_js = derive_subaddress(account_key_js, 0)?;
+    let address: PublicAddress = serde_wasm_bindgen::from_value(address_js)?;
+
+    // Build PublicAddress protobuf (mc-api external.proto)
+    let mut addr_bytes = Vec::with_capacity(256);
+    // field 1: view_public_key (CompressedRistretto { bytes data = 1 })
+    encode_proto_bytes(&mut addr_bytes, 1, &wrap_compressed_ristretto(&address.view_public_key));
+    // field 2: spend_public_key
+    encode_proto_bytes(&mut addr_bytes, 2, &wrap_compressed_ristretto(&address.spend_public_key));
+    // field 3: fog_report_url (string)
+    if !address.fog_report_url.is_empty() {
+        encode_proto_bytes(&mut addr_bytes, 3, address.fog_report_url.as_bytes());
+    }
+    // field 4: fog_report_id (string) — empty for Signal mainnet
+    // field 5: fog_authority_sig (bytes)
+    if !address.fog_authority_sig.is_empty() {
+        encode_proto_bytes(&mut addr_bytes, 5, &address.fog_authority_sig);
+    }
+
+    // Wrap in PrintableWrapper { PublicAddress public_address = 1 }
+    let mut wrapper = Vec::with_capacity(addr_bytes.len() + 10);
+    encode_proto_bytes(&mut wrapper, 1, &addr_bytes);
+
+    // CRC32 (ISO-HDLC / CRC-32C)
+    let checksum = crc32fast::hash(&wrapper);
+    let mut payload = Vec::with_capacity(4 + wrapper.len());
+    payload.extend_from_slice(&checksum.to_le_bytes());
+    payload.extend_from_slice(&wrapper);
+
+    Ok(bs58::encode(payload).with_alphabet(bs58::Alphabet::BITCOIN).into_string())
 }

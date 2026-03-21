@@ -10,10 +10,11 @@
 
     <script type="module">
       import init, {
-	  generate_mnemonic,
-	  validate_mnemonic,
-	  mnemonic_to_account_key,
-	  derive_subaddress } from './pkg/wasm.js';
+        generate_mnemonic,
+        validate_mnemonic,
+        mnemonic_to_account_key,
+        derive_subaddress,
+        get_b58_address } from './pkg/wasm.js';
 
         (async () => {
             await init();
@@ -21,20 +22,23 @@
                 try {
                     const mnemonic = generate_mnemonic();
 
-		    const isValidMnemonic = validate_mnemonic(mnemonic);
+                    const isValidMnemonic = validate_mnemonic(mnemonic);
 
-		    // TODO (kif): What are the legit values for fog_report_url and fog_authority_spki and what do they do?
-		    const account_keys = mnemonic_to_account_key(mnemonic, "", []);
+                    // TODO (kif): What are the legit values for fog_report_url and fog_authority_spki and what do they do?
+                    const privateKeys = mnemonic_to_account_key(mnemonic, "", []);
 
-		    const publicKey = derive_subaddress(account_keys, BigInt(0));
+                    const publicKey = derive_subaddress(privateKeys, BigInt(0));
+
+                    const address = get_b58_address(privateKeys);
 
                     document.getElementById('out').textContent = `Mnemonic: ${mnemonic}
 Is Mnemonic Valid: ${isValidMnemonic}
-View Private Key: ${account_keys.view_private_key}
-Spend Private Key: ${account_keys.spend_private_key}
+View Private Key: ${privateKeys.view_private_key}
+Spend Private Key: ${privateKeys.spend_private_key}
 View Public Key: ${publicKey.view_public_key}
 Spend Public Key: ${publicKey.spend_public_key}
-Subaddress Indes: ${publicKey.subaddress_index}
+Subaddress Index: ${publicKey.subaddress_index}
+Address b58: ${address}
 `;
                 } catch (e) {
                     document.getElementById('out').textContent = 'Error: ' + e;
