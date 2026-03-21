@@ -9,7 +9,11 @@
     <pre id="out"></pre>
 
     <script type="module">
-        import init, { generate_mnemonic, mnemonic_to_account_key } from './pkg/wasm.js';
+      import init, {
+	  generate_mnemonic,
+	  validate_mnemonic,
+	  mnemonic_to_account_key,
+	  derive_subaddress } from './pkg/wasm.js';
 
         (async () => {
             await init();
@@ -17,12 +21,20 @@
                 try {
                     const mnemonic = generate_mnemonic();
 
+		    const isValidMnemonic = validate_mnemonic(mnemonic);
+
 		    // TODO (kif): What are the legit values for fog_report_url and fog_authority_spki and what do they do?
 		    const account_keys = mnemonic_to_account_key(mnemonic, "", []);
 
+		    const publicKey = derive_subaddress(account_keys, BigInt(0));
+
                     document.getElementById('out').textContent = `Mnemonic: ${mnemonic}
+Is Mnemonic Valid: ${isValidMnemonic}
 View Private Key: ${account_keys.view_private_key}
 Spend Private Key: ${account_keys.spend_private_key}
+View Public Key: ${publicKey.view_public_key}
+Spend Public Key: ${publicKey.spend_public_key}
+Subaddress Indes: ${publicKey.subaddress_index}
 `;
                 } catch (e) {
                     document.getElementById('out').textContent = 'Error: ' + e;
