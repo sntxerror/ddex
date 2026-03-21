@@ -16,8 +16,39 @@
         derive_subaddress,
         get_b58_address } from './pkg/wasm.js';
 
+        function bytesToHex(bytes) {
+            return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function renderAccountOutput(header, extraLines, privateKeys, publicKey, address) {
+            // These hex strings should match mobilecoind-json key representation.
+            const mobilecoindHex = {
+                view_private_key: bytesToHex(privateKeys.view_private_key),
+                spend_private_key: bytesToHex(privateKeys.spend_private_key),
+                view_public_key: bytesToHex(publicKey.view_public_key),
+                spend_public_key: bytesToHex(publicKey.spend_public_key),
+            };
+            
+            return `${header}
+${extraLines}
+View Private Key (bytes): ${privateKeys.view_private_key}
+Spend Private Key (bytes): ${privateKeys.spend_private_key}
+View Public Key (bytes): ${publicKey.view_public_key}
+Spend Public Key (bytes): ${publicKey.spend_public_key}
+Subaddress Index: ${publicKey.subaddress_index}
+Address b58: ${address}
+
+Mobilecoind-style hex:
+View Private Key: ${mobilecoindHex.view_private_key}
+Spend Private Key: ${mobilecoindHex.spend_private_key}
+View Public Key: ${mobilecoindHex.view_public_key}
+Spend Public Key: ${mobilecoindHex.spend_public_key}
+`;
+        }
+
         (async () => {
             await init();
+
             document.getElementById('generate').addEventListener('click', async () => {
                 try {
                     const mnemonic = generate_mnemonic();
@@ -31,15 +62,13 @@
 
                     const address = get_b58_address(privateKeys);
 
-                    document.getElementById('out').textContent = `Mnemonic: ${mnemonic}
-Is Mnemonic Valid: ${isValidMnemonic}
-View Private Key: ${privateKeys.view_private_key}
-Spend Private Key: ${privateKeys.spend_private_key}
-View Public Key: ${publicKey.view_public_key}
-Spend Public Key: ${publicKey.spend_public_key}
-Subaddress Index: ${publicKey.subaddress_index}
-Address b58: ${address}
-`;
+                    document.getElementById('out').textContent = renderAccountOutput(
+                        `Mnemonic: ${mnemonic}`,
+                        `Is Mnemonic Valid: ${isValidMnemonic}`,
+                        privateKeys,
+                        publicKey,
+                        address,
+                    );
                 } catch (e) {
                     document.getElementById('out').textContent = 'Error: ' + e;
                 }
