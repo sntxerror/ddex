@@ -1,4 +1,39 @@
-# WASM Transaction Construction
+# Key Deriviation
+
+This library implements a hierarchical, privacy-focused key derivation process to generate and manage cryptographic keys for MobileCoin and Signal-compatible wallets.
+
+The process begins with a BIP-39 mnemonic phrase—a sequence of words designed for human backup and recovery. This mnemonic is converted into a binary “seed,” which forms the single root of all wallet secrets, making backups simple and robust.  
+*See: [`mnemonic_to_account_key` in `src/keys.rs`](src/keys.rs)*
+
+From the seed, the wallet derives an account master key using the SLIP-0010 standard with the Ed25519 curve, following the path `m/44'/866'/0'` (where 44' indicates BIP-44, 866' is the MobileCoin coin type, and 0' represents the account index). This ensures compatibility, determinism, and separation from other cryptocurrencies.  
+*Reference: SLIP-0010 derivation path code in [`mnemonic_to_account_key`](src/keys.rs), details in [MobileCoin SLIP-0010 implementation](https://github.com/mobilecoinfoundation/mobilecoin/blob/master/core/src/slip10/mod.rs)*
+
+The master key is then deterministically separated into two cryptographically distinct private keys using HKDF-SHA512 with domain-specific salts:
+- The “spend” key grants the ability to authorize outgoing transactions from the wallet.
+- The “view” key allows efficient private detection of incoming payments and transaction details, without the ability to spend funds.
+  
+*Implemented in: [`mnemonic_to_account_key` function, HKDF sections](src/keys.rs)*
+
+This separation of spend and view keys adds a valuable privacy feature: you can share your view key for auditing or monitoring purposes without risking funds.
+
+To support privacy at the address layer, the wallet can generate any number of “subaddresses.” These are derived using the account’s keys and a unique index, so each subaddress is unlinkable to others from the perspective of an outside observer. This means users can receive funds to multiple addresses within one wallet, without exposing their entire transaction history.  
+*See: [`derive_subaddress` function in `src/keys.rs`](src/keys.rs#L160)*
+
+Whenever the wallet creates a transaction output, it constructs a unique “one-time” stealth address using a combination of sender and recipient keys.  
+*See: [`build_tx_out_inner` and output key derivation in `src/transaction.rs`](src/transaction.rs#L774)*
+
+This mechanism, combined with cryptographic amount masking via shared secrets, ensures that only the intended recipient can recognize and access the payment—and that transaction values remain confidential.  
+*See: Amount masking logic in [`src/transaction.rs`](src/transaction.rs) and HKDF-based masks*
+
+In essence, this key derivation scheme lets you backup your wallet with a single phrase, manage your keys hierarchically with broad compatibility, and gain robust privacy and security guarantees by default—without changing your regular wallet usage.
+
+**References for further detail:**
+- [SLIP-0010 (Ed25519 key derivation)](https://github.com/satoshilabs/slips/blob/master/slip-0010.md)
+- [BIP-39 (Mnemonic phrase standard)](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+- [MobileCoin key derivation code](https://github.com/mobilecoinfoundation/mobilecoin/blob/master/core/src/slip10/mod.rs)
+- Local code: [`src/keys.rs`](src/keys.rs), [`src/transaction.rs`](src/transaction.rs)
+
+# Transaction Construction
 
 `build_transaction` takes sender private keys, spendable owned outputs, a recipient address, and transaction parameters, then produces a signed, serialized MobileCoin transaction plus verification artifacts.
 
