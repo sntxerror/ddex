@@ -7,9 +7,17 @@ import init, {
   get_b58_address,
 } from '../pkg/wasm.js';
 
-const mnemonic = process.argv.slice(2).join(' ').trim();
+function parseArgs(argv) {
+  return {
+    mnemonic: argv.join(' ').trim(),
+  };
+}
+
+const { mnemonic } = parseArgs(process.argv.slice(2));
+
 if (!mnemonic) {
   console.error('Usage: node test/compare_wasm_vs_mobilecoind.mjs "<mnemonic phrase>"');
+  console.error('For build_transaction comparisons, use: node test/compare_build_tx_wasm_vs_mobilecoind.mjs [fixture-path]');
   process.exit(1);
 }
 
@@ -47,7 +55,25 @@ async function requestJson(path, options = {}) {
   return body;
 }
 
-async function getMobilecoindData() {
+async function findMonitorIdByB58Address(expectedB58Address) {
+  const monitors = await requestJson('/monitors');
+  const monitorIds = Array.isArray(monitors.monitor_ids) ? monitors.monitor_ids : [];
+
+  for (const monitorId of monitorIds) {
+    try {
+      const address = await requestJson(`/monitors/${monitorId}/subaddresses/0/public-address`);
+      if (address.b58_address_code === expectedB58Address) {
+        return monitorId;
+      }
+    } catch {
+      // Ignore stale or incompatible monitor entries while scanning.
+    }
+  }
+
+  return null;
+}
+
+async function getMobilecoindData(expectedB58Address) {
   const account = await requestJson('/account-key-from-mnemonic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,22 +84,35 @@ async function getMobilecoindData() {
     throw new Error(`Missing private keys in account-key-from-mnemonic response: ${JSON.stringify(account)}`);
   }
 
-  const monitor = await requestJson('/monitors', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      account_key: {
-        view_private_key: account.view_private_key,
-        spend_private_key: account.spend_private_key,
-      },
-      first_subaddress: 0,
-      num_subaddresses: 1,
-    }),
-  });
+  let monitorId = null;
+  let createdMonitor = false;
 
-  const monitorId = monitor.monitor_id;
+  try {
+    const monitor = await requestJson('/monitors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account_key: {
+          view_private_key: account.view_private_key,
+          spend_private_key: account.spend_private_key,
+        },
+        first_subaddress: 0,
+        num_subaddresses: 1,
+      }),
+    });
+
+    monitorId = monitor.monitor_id;
+    createdMonitor = true;
+  } catch (error) {
+    if (!String(error.message).includes('SubaddressStore already exists')) {
+      throw error;
+    }
+
+    monitorId = await findMonitorIdByB58Address(expectedB58Address);
+  }
+
   if (!monitorId) {
-    throw new Error(`Missing monitor_id in monitors response: ${JSON.stringify(monitor)}`);
+    throw new Error('Unable to create or locate an existing mobilecoind monitor for this mnemonic');
   }
 
   try {
@@ -87,10 +126,12 @@ async function getMobilecoindData() {
       b58_address: address.b58_address_code || '',
     };
   } finally {
-    try {
-      await fetch(`${baseUrl}/monitors/${monitorId}`, { method: 'DELETE' });
-    } catch {
-      // Best-effort cleanup.
+    if (createdMonitor) {
+      try {
+        await fetch(`${baseUrl}/monitors/${monitorId}`, { method: 'DELETE' });
+      } catch {
+        // Best-effort cleanup.
+      }
     }
   }
 }
@@ -141,9 +182,11 @@ async function main() {
   const wasmBytes = readFileSync(new URL('../pkg/wasm_bg.wasm', import.meta.url));
   await init({ module_or_path: wasmBytes });
 
+  const expectedWasmData = getWasmData();
+
   const [wasmData, mobileData] = await Promise.all([
-    Promise.resolve(getWasmData()),
-    getMobilecoindData(),
+    Promise.resolve(expectedWasmData),
+    getMobilecoindData(expectedWasmData.b58_address),
   ]);
 
   process.exitCode = printComparison(wasmData, mobileData);
