@@ -17,7 +17,8 @@ ddex/
 
 ## Prerequisites
 
-- **Node.js** >= 24
+- **Node.js** >= 22 (LTS)
+- **Docker** (for the Envoy proxy)
 - **Rust** (stable) with `wasm32-unknown-unknown` target
 - **wasm-pack**
 
@@ -43,9 +44,20 @@ cd frontend
 npm install
 ```
 
-### 3. Start development server
+### 3. Start the Envoy proxy
 
 ```bash
+cd proxy
+docker compose up --build -d
+./test.sh  # verify all 4 routes
+```
+
+See [proxy/README.md](proxy/README.md) for full architecture docs.
+
+### 4. Start development server
+
+```bash
+cd frontend
 npm run dev
 ```
 
@@ -76,7 +88,7 @@ cargo test --workspace
 
 ```bash
 cd frontend
-pm run lint
+npm run lint
 npx tsc -b --noEmit
 ```
 
