@@ -90,9 +90,11 @@ Each cluster has a `transport_socket` with `UpstreamTlsContext` + SNI. This mean
 cd proxy
 docker compose up --build
 
-# Verify
-curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/test/fog/
-# 200 or 415 = Envoy + upstream working
+# Test all 4 routes
+./test.sh
+
+# Test against Codespace
+./test.sh https://bug-free-eureka-r4pprjq5gp52gq4-8080.app.github.dev
 
 # Logs
 docker compose logs -f envoy
@@ -100,6 +102,8 @@ docker compose logs -f envoy
 # Stop
 docker compose down
 ```
+
+`test.sh` sends a gRPC-Web request (`report.ReportAPI/GetReports` for Fog, `consensus_common.BlockchainAPI/GetLastBlockInfo` for Consensus) to each of the 4 routes and expects HTTP 200. Pass a custom base URL as the first argument to test a remote instance.
 
 ## Deployment
 
