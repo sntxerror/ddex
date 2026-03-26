@@ -19,7 +19,7 @@ ddex/
 - **Node.js** >= 22 (LTS)
 - **pnpm** >= 10 (via `corepack enable` recommended)
 - **Docker** (for the Envoy proxy)
-- **Rust** 1.86.0 with `wasm32-unknown-unknown` target
+- **Rust** 1.88.0 with `wasm32-unknown-unknown` target
 - **wasm-pack**
 
 ## Toolchain setup

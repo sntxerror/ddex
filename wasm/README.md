@@ -7,7 +7,7 @@ This folder is the workspace package that exposes the browser-facing pre built `
 `wasm-pack` emits the assembled browser package into `ddex/wasm/pkg/` with a stable output name:
 
 ```bash
-wasm-pack build ../crates/wallet-core --target web --out-dir ./pkg --out-name wallet_core
+wasm-pack build ../crates/wallet-core --target web --out-dir ../../wasm/pkg --out-name wallet_core
 ```
 
 That produces the generated browser package files consumed by the wrapper in this folder:

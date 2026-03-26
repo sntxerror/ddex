@@ -11,7 +11,6 @@
     "pkg"
   ],
   "scripts": {
-    "build": "wasm-pack build ../crates/wallet-core --target web --out-dir ./pkg --out-name wallet_core",
-    "clean": "rm -rf ./pkg"
+    "build": "wasm-pack build ../crates/wallet-core --target web --out-dir ../../wasm/pkg --out-name wallet_core"
   }
 }
