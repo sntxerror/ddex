@@ -1,0 +1,23 @@
+.panel {
+  min-height: 100%;
+}
+
+.card {
+  background: rgb(139 92 246 / 5%);
+}
+
+.inlineActions {
+  gap: 0.75rem;
+}
+
+.metaGrid {
+  gap: 0.75rem;
+}
+
+.metaCard {
+  height: 100%;
+}
+
+.supportText {
+  max-width: 42rem;
+}

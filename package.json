@@ -3,10 +3,17 @@
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "build:wasm": "pnpm --filter @ddex/wallet-core-web build",
-    "dev": "pnpm run build:wasm && pnpm --filter ./frontend dev",
+    "build:wasm": "node ./scripts/build-wasm.mjs",
+    "dev": "concurrently --kill-others-on-fail --names proxy,frontend --prefix-colors blue,magenta \"pnpm run dev:proxy\" \"pnpm run start:frontend\"",
+    "dev:proxy": "cd proxy && docker compose up --build",
+    "dev:proxy:down": "cd proxy && docker compose down",
+    "start:frontend": "node ./scripts/start-frontend.mjs",
+    "setup:rust": "bash ./scripts/setup-rust.sh",
     "build": "pnpm run build:wasm && pnpm --filter ./frontend build",
     "lint": "pnpm --filter ./frontend lint",
     "typecheck": "pnpm --filter ./frontend typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

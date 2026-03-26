@@ -44,7 +44,7 @@ function getGeneratedModuleLoader(): GeneratedModuleLoader {
   const loader = generatedModuleLoaders['./pkg/wallet_core.js']
 
   if (!loader) {
-    throw new Error('Missing generated wallet-core package. Run `pnpm build:wasm` first.')
+    throw new Error('Missing generated wallet-core package. Run `pnpm build:wasm` from the repo root first.')
   }
 
   return loader as GeneratedModuleLoader

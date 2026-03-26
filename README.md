@@ -19,27 +19,34 @@ ddex/
 - **Node.js** >= 22 (LTS)
 - **pnpm** >= 10 (via `corepack enable` recommended)
 - **Docker** (for the Envoy proxy)
-- **Rust** (stable) with `wasm32-unknown-unknown` target
+- **Rust** 1.86.0 with `wasm32-unknown-unknown` target
 - **wasm-pack**
 
-## Quick start
+## Toolchain setup
 
 ```bash
-npm install -g wasm-pack
-# or
-cargo install wasm-pack
+corepack enable
+pnpm install
+pnpm run setup:rust
 ```
+
+The repository pins Rust in `rust-toolchain.toml`, and `pnpm run setup:rust` installs:
+
+- the pinned Rust toolchain
+- the `wasm32-unknown-unknown` target
+- `wasm-pack`
+
+CI uses the same pinned Rust toolchain and `wasm-pack`, so local builds and CI stay in lockstep.
 
 ### 1. Build the WASM module
 
 ```bash
-wasm-pack build crates/wallet-core --target web --out-dir ../../wasm/pkg --out-name wallet_core
+pnpm build:wasm
 ```
 
 ### 2. Install frontend dependencies
 
 ```bash
-corepack enable
 pnpm install
 ```
 
@@ -76,6 +83,12 @@ The Vite dev server starts at `http://localhost:5173` with proxies:
 
 ```bash
 pnpm build:wasm
+```
+
+If the Rust toolchain has not been installed yet, run:
+
+```bash
+pnpm run setup:rust
 ```
 
 ### Run Rust tests

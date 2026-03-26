@@ -11,9 +11,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { HeroPanel, type HeroPanelNotice, type HeroPanelTone } from './components/HeroPanel'
 import { ReceivePanel } from './components/ReceivePanel'
 import {
+  SecureStoragePanel,
+  type SecureStorageState,
+} from './components/SecureStoragePanel'
+import {
   WalletSetupPanel,
   type WalletSetupMode,
 } from './components/WalletSetupPanel'
+import {
+  deleteStoredWalletKeystore,
+  getStoredWalletKeystoreMetadata,
+  isSecureKeystoreSupported,
+  saveWalletKeystore,
+  unlockStoredWalletMnemonic,
+  type StoredWalletKeystoreMetadata,
+} from './keystore/secureKeystore'
 import styles from './App.module.css'
 
 const TESTNET_FOG_REPORT_URL = 'fog.test.mobilecoin.com'
@@ -30,8 +42,30 @@ function App() {
   const [walletMnemonic, setWalletMnemonic] = useState('')
   const [walletAddress, setWalletAddress] = useState('')
   const [walletAccount, setWalletAccount] = useState<WalletAccountKey | null>(null)
+  const [storedVault, setStoredVault] = useState<StoredWalletKeystoreMetadata | null>(null)
+  const [storageState, setStorageState] = useState<SecureStorageState>('checking')
+  const [storageWorking, setStorageWorking] = useState(false)
+  const [savePassphrase, setSavePassphrase] = useState('')
+  const [unlockPassphrase, setUnlockPassphrase] = useState('')
   const [feedback, setFeedback] = useState('')
   const [copiedState, setCopiedState] = useState<'mnemonic' | 'address' | null>(null)
+
+  const refreshStoredVaultState = async () => {
+    if (!isSecureKeystoreSupported()) {
+      setStoredVault(null)
+      setStorageState('unsupported')
+      return
+    }
+
+    try {
+      const metadata = await getStoredWalletKeystoreMetadata()
+      setStoredVault(metadata)
+      setStorageState('ready')
+    } catch {
+      setStoredVault(null)
+      setStorageState('error')
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -55,6 +89,10 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    void refreshStoredVaultState()
+  }, [])
+
   const normalizedDraft = useMemo(
     () => mnemonicDraft.trim().replace(/\s+/g, ' '),
     [mnemonicDraft],
@@ -69,7 +107,7 @@ function App() {
     return normalizedDraft.length > 0 && validateMnemonic(normalizedDraft)
   }, [normalizedDraft])
 
-  const deriveWallet = async (phrase: string) => {
+  const deriveWallet = async (phrase: string, successMessage?: string) => {
     setWorking(true)
     setFeedback('')
     setWalletAddress('')
@@ -85,13 +123,28 @@ function App() {
       setWalletMnemonic(phrase)
       setWalletAccount(account)
       setWalletAddress(address)
-      setFeedback('Wallet material derived locally in the browser. No server saw the phrase.')
+      setFeedback(
+        successMessage ?? 'Wallet material derived locally in the browser. No server saw the phrase.',
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setFeedback(message)
     } finally {
       setWorking(false)
     }
+  }
+
+  const relockWallet = () => {
+    setMnemonicDraft('')
+    setWalletMnemonic('')
+    setWalletAddress('')
+    setWalletAccount(null)
+    setCopiedState(null)
+    setFeedback(
+      storedVault
+        ? 'Wallet relocked. The encrypted IndexedDB vault is still available on this device.'
+        : 'Wallet relocked from memory.',
+    )
   }
 
   const handleCreate = async () => {
@@ -132,6 +185,63 @@ function App() {
     }
   }
 
+  const handleSaveToDevice = async () => {
+    setStorageWorking(true)
+
+    try {
+      await saveWalletKeystore(walletMnemonic, savePassphrase)
+      await refreshStoredVaultState()
+      setSavePassphrase('')
+      setFeedback(
+        storedVault
+          ? 'Encrypted IndexedDB vault updated for this browser profile.'
+          : 'Encrypted IndexedDB vault saved locally for this browser profile.',
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setFeedback(message)
+    } finally {
+      setStorageWorking(false)
+    }
+  }
+
+  const handleUnlockFromDevice = async () => {
+    setStorageWorking(true)
+
+    try {
+      const phrase = await unlockStoredWalletMnemonic(unlockPassphrase)
+      setMode('import')
+      setMnemonicDraft(phrase)
+      setUnlockPassphrase('')
+      await deriveWallet(
+        phrase,
+        'Wallet unlocked from the encrypted IndexedDB vault and re-derived locally in the browser.',
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setFeedback(message)
+    } finally {
+      setStorageWorking(false)
+    }
+  }
+
+  const handleDeleteStoredWallet = async () => {
+    setStorageWorking(true)
+
+    try {
+      await deleteStoredWalletKeystore()
+      await refreshStoredVaultState()
+      setSavePassphrase('')
+      setUnlockPassphrase('')
+      setFeedback('Encrypted IndexedDB vault removed from this browser profile.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setFeedback(message)
+    } finally {
+      setStorageWorking(false)
+    }
+  }
+
   const statusPill: { label: string; tone: HeroPanelTone } = wasmStatus === 'ready'
     ? { label: 'wallet-core ready', tone: 'ready' }
     : wasmStatus === 'error'
@@ -149,6 +259,8 @@ function App() {
     : 0
 
   const displayedMnemonic = walletMnemonic || mnemonicDraft
+  const hasLoadedWallet = walletMnemonic.length > 0 && walletAddress.length > 0
+  const isAnyWorkInFlight = working || storageWorking
 
   return (
     <div className={styles.shell}>
@@ -170,7 +282,7 @@ function App() {
               onModeChange={setMode}
               wasmReady={wasmStatus === 'ready'}
               wordCount={mnemonicWordCount}
-              working={working}
+              working={isAnyWorkInFlight}
             />
 
             <ReceivePanel
@@ -182,12 +294,27 @@ function App() {
             />
           </SimpleGrid>
 
+          <SecureStoragePanel
+            hasLoadedWallet={hasLoadedWallet}
+            onDeleteStoredWallet={() => void handleDeleteStoredWallet()}
+            onRelockWallet={relockWallet}
+            onSavePassphraseChange={setSavePassphrase}
+            onSaveToDevice={() => void handleSaveToDevice()}
+            onUnlockFromDevice={() => void handleUnlockFromDevice()}
+            onUnlockPassphraseChange={setUnlockPassphrase}
+            savePassphrase={savePassphrase}
+            status={storageState}
+            storedVault={storedVault}
+            unlockPassphrase={unlockPassphrase}
+            working={isAnyWorkInFlight}
+          />
+
           <Paper className={styles.footer} p="xl" radius="xl" withBorder>
             <Text c="dimmed" lh={1.7} size="sm">
-              This is the first wallet-oriented frontend slice: it proves the regenerated package can
-              initialize, generate or import mnemonics, derive an account key, and encode the default
-              receive address without touching a server. Keystore persistence, unlock flows, Fog sync,
-              and send reconciliation are the next stops on the roadmap.
+              This wallet preview now covers local derivation plus encrypted client-side persistence:
+              the browser can generate or import a mnemonic, derive the default receive address, and
+              store only AES-GCM ciphertext in IndexedDB for later unlock. Fog sync, transaction send,
+              and recovery-safe reconciliation are the next big stops on the roadmap.
             </Text>
           </Paper>
         </Stack>

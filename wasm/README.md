@@ -1,6 +1,6 @@
 # WASM workspace package
 
-This folder is the workspace package that exposes the browser-facing `wallet-core` API to the frontend.
+This folder is the workspace package that exposes the browser-facing pre built `wallet-core` API to the frontend.
 
 ## What lives here
 
