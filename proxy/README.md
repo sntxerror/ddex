@@ -1,12 +1,26 @@
 # Envoy gRPC-Web Proxy
 
-An Envoy proxy that provides a single HTTP endpoint for MobileCoin's gRPC services. Any client — browser frontends, backend services, CLI tools — can reach both testnet and mainnet Fog/Consensus through it. Envoy translates HTTP/1.1 (or HTTP/2) to upstream gRPC over TLS.
+An Envoy proxy that provides a single HTTP endpoint for MobileCoin's gRPC services. Any clients, browser frontends, backend services, CLI tools — can reach both testnet and mainnet Fog/Consensus through it. Envoy translates HTTP/1.1 (or HTTP/2) to upstream gRPC over TLS.
 
 The proxy is stateless and can be deployed on a separate, isolated machine as shared infrastructure. Multiple instances can run behind a load balancer for redundancy.
 
-## Why a proxy?
+## Why a standalone proxy instead of in-app logic?
 
-Browsers cannot make native gRPC calls (HTTP/2 with trailers), so they need a gRPC-Web gateway. But the proxy is useful beyond browsers — it centralizes TLS termination, DNS resolution, and routing to MobileCoin nodes so that backend services don't each need their own gRPC client config. Envoy has first-class support for this via its `grpc_web` HTTP filter and handles both gRPC-Web and standard gRPC clients transparently.
+Kyoto-wallet embeds proxy logic inside the app (a Node.js process that translates REST to gRPC). That works, but coupling the proxy to the application has real costs:
+
+- **Duplicated work** — every service that talks to MobileCoin needs its own gRPC client setup, TLS config, proto loading, and connection pooling. With a shared proxy, clients just send HTTP.
+- **Language lock-in** — `@grpc/grpc-js` and proto-loader are Node-only. A Rust backend, Python script, or mobile app would each need a separate gRPC stack. The proxy speaks plain HTTP to all of them.
+- **Deployment coupling** — if the proxy logic lives inside your web server, scaling the proxy means scaling the whole app. A standalone Envoy container can be scaled, rate-limited, and monitored independently.
+- **No single point of configuration** — upstream hosts, TLS certs, timeouts, retries, and CORS are configured once in `envoy.yaml` instead of scattered across application code.
+- **Browser limitations** — browsers can't add the `Te: trailers` header (Fetch spec forbids it) or open raw HTTP/2 streams. Envoy handles this transparently; in-app solutions need custom frame encoding.
+- **Operational visibility** — Envoy provides structured access logs, stats, and health checks out of the box. Application-level proxies require building all of that.
+- **Security boundary** — the proxy is the only component that holds upstream TLS connections. App servers never touch MobileCoin credentials or certs directly. If the app is compromised, the blast radius doesn't extend to the network layer.
+
+The tradeoff is an extra container in your stack. For a single developer testing locally that's marginal; for production it's the standard pattern (Envoy, nginx, or a cloud load balancer in front of gRPC services).
+
+## Why Envoy specifically?
+
+Browsers cannot make native gRPC calls (HTTP/2 with trailers), so they need a gRPC-Web gateway. Envoy has first-class support for this via its `grpc_web` HTTP filter and handles both gRPC-Web and standard gRPC clients transparently — no application code required.
 
 ## Architecture
 
