@@ -1,0 +1,23 @@
+.panel {
+  min-height: 100%;
+}
+
+.fieldCard {
+  background: rgb(139 92 246 / 5%);
+}
+
+.helperRow {
+  gap: 0.75rem;
+}
+
+.helperText {
+  flex: 1;
+}
+
+.valid {
+  color: var(--mantine-color-teal-6);
+}
+
+.textarea {
+  font-family: ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, monospace;
+}

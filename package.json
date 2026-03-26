@@ -1,0 +1,12 @@
+{
+  "name": "ddex",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "build:wasm": "pnpm --filter @ddex/wallet-core-web build",
+    "dev": "pnpm run build:wasm && pnpm --filter ./frontend dev",
+    "build": "pnpm run build:wasm && pnpm --filter ./frontend build",
+    "lint": "pnpm --filter ./frontend lint",
+    "typecheck": "pnpm --filter ./frontend typecheck"
+  }
+}

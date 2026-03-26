@@ -4,20 +4,20 @@ Non-custodial MobileCoin web wallet and DEX.
 
 ## Structure
 
-```
+```text
 ddex/
   artifacts/           # LLM-generated docs (gitignored, local only)
   crates/
     wallet-core/       # Rust WASM library (MobileCoin crypto operations)
-  packages/
-    wallet-core-wasm/  # Generated WASM package (built by wasm-pack)
   frontend/            # React + TypeScript + Vite web app
   proxy/               # Envoy gRPC-Web proxy (see proxy/README.md)
+  wasm/                # Workspace package for the browser wallet-core build
 ```
 
 ## Prerequisites
 
 - **Node.js** >= 22 (LTS)
+- **pnpm** >= 10 (via `corepack enable` recommended)
 - **Docker** (for the Envoy proxy)
 - **Rust** (stable) with `wasm32-unknown-unknown` target
 - **wasm-pack**
@@ -30,18 +30,17 @@ npm install -g wasm-pack
 cargo install wasm-pack
 ```
 
-
 ### 1. Build the WASM module
 
 ```bash
-wasm-pack build crates/wallet-core --target web --out-dir ../../packages/wallet-core-wasm
+wasm-pack build crates/wallet-core --target web --out-dir ../../wasm/pkg --out-name wallet_core
 ```
 
 ### 2. Install frontend dependencies
 
 ```bash
-cd frontend
-npm install
+corepack enable
+pnpm install
 ```
 
 ### 3. Start the Envoy proxy
@@ -57,9 +56,10 @@ See [proxy/README.md](proxy/README.md) for full architecture docs.
 ### 4. Start development server
 
 ```bash
-cd frontend
-npm run dev
+pnpm dev
 ```
+
+The root `pnpm dev` command first builds the `@ddex/wallet-core-web` workspace package in `wasm/pkg/`, then starts the frontend. The frontend imports the workspace package directly instead of copying generated files into `frontend/src/`.
 
 The Vite dev server starts at `http://localhost:5173` with proxies:
 
@@ -75,7 +75,7 @@ The Vite dev server starts at `http://localhost:5173` with proxies:
 ### Rebuild WASM after Rust changes
 
 ```bash
-wasm-pack build crates/wallet-core --target web --out-dir ../../packages/wallet-core-wasm
+pnpm build:wasm
 ```
 
 ### Run Rust tests
@@ -87,10 +87,11 @@ cargo test --workspace
 ### Lint and type-check frontend
 
 ```bash
-cd frontend
-npm run lint
-npx tsc -b --noEmit
+pnpm lint
+pnpm typecheck
 ```
+
+See [`wasm/README.md`](wasm/README.md) for the detailed workspace-package build workflow.
 
 ## Artifacts
 

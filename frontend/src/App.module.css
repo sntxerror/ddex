@@ -1,0 +1,21 @@
+.shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgb(139 92 246 / 16%), transparent 32%),
+    linear-gradient(180deg, rgb(139 92 246 / 4%), transparent 36%);
+}
+
+.page {
+  padding: clamp(2rem, 5vw, 4.5rem) 1rem 3rem;
+}
+
+.footer {
+  background: rgb(139 92 246 / 4%);
+}
+
+@media (width <= 48rem) {
+  .page {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+  }
+}

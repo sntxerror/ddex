@@ -1,0 +1,17 @@
+{
+  "name": "@ddex/wallet-core-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "pkg"
+  ],
+  "scripts": {
+    "build": "wasm-pack build ../crates/wallet-core --target web --out-dir ./pkg --out-name wallet_core",
+    "clean": "rm -rf ./pkg"
+  }
+}

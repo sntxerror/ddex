@@ -21,12 +21,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM module
-        run: wasm-pack build crates/wallet-core --target web --out-dir ../../frontend/src/wasm
-
-      - name: Copy WASM binary to public
-        run: |
-          mkdir -p frontend/public/wasm
-          cp frontend/src/wasm/wallet_core_bg.wasm frontend/public/wasm/wallet_core_bg.wasm
+        run: wasm-pack build crates/wallet-core --target web --out-dir ../../wasm/pkg --out-name wallet_core
 
       - name: Run Rust tests
         run: cargo test --workspace
@@ -34,10 +29,8 @@ jobs:
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wallet-core-wasm
-          path: |
-            frontend/src/wasm/
-            frontend/public/wasm/
+          name: wallet-core-wasm-pkg
+          path: wasm/pkg/
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -45,28 +38,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Download WASM artifact
         uses: actions/download-artifact@v4
         with:
-          name: wallet-core-wasm
+          name: wallet-core-wasm-pkg
+          path: wasm/pkg
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
-        working-directory: frontend
-        run: npm run lint
+        run: pnpm lint
 
       - name: Type check
-        working-directory: frontend
-        run: npx tsc -b --noEmit
+        run: pnpm typecheck
 
       - name: Build
-        working-directory: frontend
-        run: npm run build
+        run: pnpm build

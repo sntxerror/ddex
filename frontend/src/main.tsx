@@ -1,21 +1,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { AppThemeProvider } from './components/AppThemeProvider'
 import './index.css'
-import { installProxyInterceptor } from './proxyLogger.ts'
-
-// Intercept fetch globally so proxy calls on ANY page are logged
-installProxyInterceptor()
-
-const isProxyLogs = window.location.pathname === '/proxy-logs'
 
 async function mount() {
-  const { default: Page } = isProxyLogs
-    ? await import('./ProxyLogs.tsx')
-    : await import('./App.tsx')
+  const { default: Page } = await import('./App.tsx')
+  const rootElement = document.getElementById('root')
 
-  createRoot(document.getElementById('root')!).render(
+  if (!rootElement) {
+    throw new Error('Unable to find the #root element required to mount the app.')
+  }
+
+  createRoot(rootElement).render(
     <StrictMode>
-      <Page />
+      <AppThemeProvider>
+        <Page />
+      </AppThemeProvider>
     </StrictMode>,
   )
 }

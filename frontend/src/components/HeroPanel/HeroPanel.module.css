@@ -1,0 +1,62 @@
+.panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at top right, rgb(139 92 246 / 18%), transparent 42%);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+.header {
+  align-items: flex-start;
+}
+
+.heroTitle {
+  max-width: 11ch;
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+
+.heroText {
+  max-width: 44rem;
+}
+
+.statusBadge {
+  text-transform: none;
+}
+
+.pipelineCard {
+  width: min(100%, 21rem);
+  flex-shrink: 0;
+}
+
+.pipelineCode {
+  font-size: 0.8rem;
+}
+
+.themeToggle {
+  flex-shrink: 0;
+}
+
+.notice {
+  margin-top: 0.25rem;
+}
+
+@media (width <= 48rem) {
+  .header {
+    flex-direction: column;
+  }
+
+  .pipelineCard {
+    width: 100%;
+  }
+}
