@@ -5,12 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Forward /fog and /consensus to local Envoy gRPC-Web proxy
-      '/fog': {
+      // Forward /test/* and /prod/* to local Envoy gRPC-Web proxy
+      '/test': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/consensus': {
+      '/prod': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },

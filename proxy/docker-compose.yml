@@ -1,0 +1,21 @@
+# Envoy gRPC-Web proxy for MobileCoin networks.
+# Reads env vars from ../.env, runs envsubst to expand ${...} placeholders
+# in envoy.yaml, then starts Envoy with the rendered config.
+#
+# Usage:
+#   docker compose up --build       # first time or after Dockerfile changes
+#   docker compose up                # subsequent starts
+#   docker compose down              # stop
+#   docker compose logs -f envoy     # tail logs
+#
+services:
+  envoy:
+    build: .
+    env_file: ../.env
+    ports:
+      - "${ENVOY_PORT:-8080}:${ENVOY_PORT:-8080}"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml.tmpl:ro
+    command: >
+      sh -c 'envsubst < /etc/envoy/envoy.yaml.tmpl > /tmp/envoy.yaml &&
+             envoy -c /tmp/envoy.yaml --log-level $${ENVOY_LOG_LEVEL:-info}'

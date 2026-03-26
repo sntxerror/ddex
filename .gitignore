@@ -1,3 +1,7 @@
+# Artifacts — LLM plans, handoffs, research (keep folder via .gitkeep)
+artifacts/*
+!artifacts/.gitkeep
+
 # Rust / Cargo
 target/
 Cargo.lock

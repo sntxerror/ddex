@@ -6,21 +6,29 @@ Non-custodial MobileCoin web wallet and DEX.
 
 ```
 ddex/
+  artifacts/           # LLM-generated docs (gitignored, local only)
   crates/
     wallet-core/       # Rust WASM library (MobileCoin crypto operations)
   packages/
     wallet-core-wasm/  # Generated WASM package (built by wasm-pack)
   frontend/            # React + TypeScript + Vite web app
-  research.md          # MobileCoin network endpoint research
+  proxy/               # Envoy gRPC-Web proxy (see proxy/README.md)
 ```
 
 ## Prerequisites
 
 - **Node.js** >= 24
 - **Rust** (stable) with `wasm32-unknown-unknown` target
-- **wasm-pack** (`npm install -g wasm-pack` or `cargo install wasm-pack`)
+- **wasm-pack**
 
 ## Quick start
+
+```bash
+npm install -g wasm-pack
+# or
+cargo install wasm-pack
+```
+
 
 ### 1. Build the WASM module
 
@@ -45,8 +53,10 @@ The Vite dev server starts at `http://localhost:5173` with proxies:
 
 | Path | Target | Purpose |
 | --- | --- | --- |
-| `/fog` | `fog.test.mobilecoin.com` | Fog gRPC-Web proxy |
-| `/consensus` | `node1.test.mobilecoin.com` | Consensus node proxy |
+| `/test/fog/*` | `fog.test.mobilecoin.com` | Testnet Fog gRPC-Web proxy |
+| `/test/consensus/*` | `node1.test.mobilecoin.com` | Testnet Consensus proxy |
+| `/prod/fog/*` | `fog.prod.mobilecoinww.com` | Mainnet Fog gRPC-Web proxy |
+| `/prod/consensus/*` | `node1.prod.mobilecoinww.com` | Mainnet Consensus proxy |
 
 ## Development
 
@@ -66,6 +76,12 @@ cargo test --workspace
 
 ```bash
 cd frontend
-npm run lint
+pm run lint
 npx tsc -b --noEmit
 ```
+
+## Artifacts
+
+The `artifacts/` directory is for local-only LLM-generated documents (plans, handoffs, research notes, etc.). It is gitignored — only the `.gitkeep` is tracked so the folder exists after clone.
+
+Put any AI/LLM session artifacts here to keep the repo clean.
