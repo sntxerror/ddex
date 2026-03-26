@@ -17,14 +17,14 @@ export function ReceivePanel({
       <Stack gap="lg">
         <div>
           <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-            Receive
+            My wallet address
           </Text>
           <Title mt="xs" order={2}>
-            Primary address
+            Share your receive address
           </Title>
           <Text c="dimmed" mt="xs" size="sm">
-            Once a mnemonic is derived, the default subaddress is encoded with the wallet-core WASM
-            package.
+            This is the default address derived from your active wallet profile. Use it to receive
+            testnet funds while the broader DDEX flow comes online.
           </Text>
         </div>
 
@@ -34,7 +34,7 @@ export function ReceivePanel({
               walletAddress
             ) : (
               <span className={styles.addressPlaceholder}>
-                Generate or import a mnemonic to populate the default b58 address.
+                Load a wallet first to reveal the address tied to this profile.
               </span>
             )}
           </Text>
@@ -51,7 +51,7 @@ export function ReceivePanel({
           </Button>
           <Group c="dimmed" gap="xs" wrap="nowrap">
             <IconMapPin size={16} />
-            <Text size="sm">Testnet-first bootstrap</Text>
+            <Text size="sm">Ready for testnet onboarding</Text>
           </Group>
         </Group>
 

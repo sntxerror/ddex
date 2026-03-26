@@ -1,22 +1,17 @@
 import {
-  ActionIcon,
   Alert,
   Badge,
-  Code,
   Group,
   Paper,
+  SimpleGrid,
   Stack,
   Text,
   Title,
-  useMantineColorScheme,
 } from '@mantine/core'
 import {
   IconAlertCircle,
   IconBolt,
   IconInfoCircle,
-  IconMoonStars,
-  IconPackageExport,
-  IconSunHigh,
 } from '@tabler/icons-react'
 import styles from './HeroPanel.module.css'
 import type { HeroPanelNotice, HeroPanelProps, HeroPanelTone } from './HeroPanel.types'
@@ -35,16 +30,24 @@ function renderNoticeIcon(notice: HeroPanelNotice) {
   return <IconInfoCircle size={18} />
 }
 
-export function HeroPanel({ notice, statusLabel, statusTone }: HeroPanelProps) {
-  const { colorScheme, setColorScheme } = useMantineColorScheme()
-  const isDark = colorScheme === 'dark'
+export function HeroPanel({
+  aside,
+  description,
+  eyebrow,
+  highlights,
+  notice,
+  statusLabel,
+  stats,
+  title,
+  statusTone,
+}: HeroPanelProps) {
 
   return (
     <Paper className={styles.panel} p="xl" radius="xl" shadow="md" withBorder>
       <Stack className={styles.content} gap="lg">
-        <Group className={styles.header} justify="space-between" wrap="wrap">
-          <Stack gap="md">
-            <Group justify="space-between" wrap="wrap">
+        <div className={styles.layout}>
+          <Stack className={styles.copyColumn} gap="lg">
+            <Group className={styles.statusRow} gap="sm" wrap="wrap">
               <Badge
                 className={styles.statusBadge}
                 color={statusToneToColor[statusTone]}
@@ -54,42 +57,44 @@ export function HeroPanel({ notice, statusLabel, statusTone }: HeroPanelProps) {
               >
                 {statusLabel}
               </Badge>
-
-              <ActionIcon
-                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-                className={styles.themeToggle}
-                onClick={() => setColorScheme(isDark ? 'light' : 'dark')}
-                size="lg"
-              >
-                {isDark ? <IconSunHigh size={18} /> : <IconMoonStars size={18} />}
-              </ActionIcon>
+              <Text className={styles.eyebrow} fw={700} size="xs" tt="uppercase">
+                {eyebrow}
+              </Text>
             </Group>
 
             <div>
               <Title className={styles.heroTitle} order={1}>
-                Wallet foundation preview
+                {title}
               </Title>
               <Text c="dimmed" className={styles.heroText} mt="md" size="lg">
-                The frontend now targets the real MobileCoin wallet-core exports instead of the retired
-                Game of Life demo. Create or import a mnemonic below to derive an account and default
-                receive address locally in the browser.
+                {description}
               </Text>
             </div>
+
+            <Group className={styles.featureList} gap="sm" wrap="wrap">
+              {highlights.map((highlight) => (
+                <Badge className={styles.featureBadge} key={highlight} size="lg" variant="white">
+                  {highlight}
+                </Badge>
+              ))}
+            </Group>
+
+            <SimpleGrid className={styles.statsGrid} cols={{ base: 1, sm: 3 }} spacing="sm">
+              {stats.map((stat) => (
+                <Paper className={styles.statCard} key={stat.label} p="md" radius="lg" withBorder>
+                  <Text c="dimmed" size="xs" tt="uppercase">
+                    {stat.label}
+                  </Text>
+                  <Text fw={700} mt="xs" size="lg">
+                    {stat.value}
+                  </Text>
+                </Paper>
+              ))}
+            </SimpleGrid>
           </Stack>
 
-          <Paper className={styles.pipelineCard} p="md" radius="lg" withBorder>
-            <Stack gap="sm">
-              <Group gap="xs" wrap="nowrap">
-                <IconPackageExport size={18} />
-                <Text fw={700}>Build pipeline</Text>
-              </Group>
-              <Text c="dimmed" size="sm">
-                Canonical generated package lives in <Code className={styles.pipelineCode}>ddex/wasm/pkg</Code>{' '}
-                and gets synced into the frontend before dev, lint, typecheck, build, and preview.
-              </Text>
-            </Stack>
-          </Paper>
-        </Group>
+          {aside ? <div className={styles.asideColumn}>{aside}</div> : null}
+        </div>
 
         {notice ? (
           <Alert

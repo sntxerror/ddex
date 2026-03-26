@@ -41,15 +41,15 @@ export function SecureStoragePanel({
       <Stack gap="lg">
         <div>
           <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-            Secure storage
+            Settings
           </Text>
           <Title mt="xs" order={2}>
-            IndexedDB device vault
+            Vault & device security
           </Title>
           <Text c="dimmed" className={styles.supportText} mt="xs" size="sm">
-            This app stays noncustodial and client-only by encrypting the mnemonic locally with
-            WebCrypto, then storing only ciphertext in IndexedDB. Nothing is uploaded to a remote
-            recovery service.
+            Keep DDEX noncustodial: encrypt the mnemonic locally with WebCrypto, store only
+            ciphertext in IndexedDB, and unlock it later on the same device. No hosted recovery
+            service, no custody handoff.
           </Text>
         </div>
 
@@ -71,7 +71,7 @@ export function SecureStoragePanel({
           <Paper className={styles.card} p="md" radius="lg" withBorder>
             <Text size="sm">
               This browser does not expose the IndexedDB + WebCrypto features needed for the local
-              vault. Wallet derivation still works in memory, but encrypted persistence is disabled.
+              vault. Wallet derivation still works in memory, but device persistence is disabled.
             </Text>
           </Paper>
         ) : status === 'checking' ? (
@@ -90,11 +90,10 @@ export function SecureStoragePanel({
             <Paper className={styles.card} p="md" radius="lg" withBorder>
               <Stack gap="md">
                 <div>
-                  <Text fw={600}>Save the current wallet to this browser</Text>
+                  <Text fw={600}>Save the current wallet to this device</Text>
                   <Text c="dimmed" mt={4} size="sm">
-                    Use a local-only passphrase to wrap the mnemonic before it is written to
-                    IndexedDB. On unlock, the mnemonic is decrypted in-browser and re-derived through
-                    `wallet-core`.
+                    Wrap the mnemonic with a local-only passphrase before it touches IndexedDB. On
+                    unlock, it is decrypted in-browser and re-derived through `wallet-core`.
                   </Text>
                 </div>
 
@@ -113,7 +112,7 @@ export function SecureStoragePanel({
                     {hasLoadedWallet
                       ? hasStoredVault
                         ? 'Saving again updates the encrypted vault in place.'
-                        : 'Load or create a wallet above, then save it encrypted on this device.'
+                        : 'Your active wallet can be sealed into a local encrypted vault.'
                       : 'Generate, import, or unlock a wallet before saving it locally.'}
                   </Text>
                   <Button
@@ -162,7 +161,7 @@ export function SecureStoragePanel({
                   <Stack gap="md">
                     <PasswordInput
                       autoComplete="current-password"
-                      description="Unlock reads ciphertext from IndexedDB and decrypts it locally."
+                      description="Unlock reads ciphertext from IndexedDB and decrypts it locally on this device."
                       disabled={working}
                       label="Unlock stored wallet"
                       onChange={(event) => onUnlockPassphraseChange(event.currentTarget.value)}

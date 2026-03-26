@@ -6,7 +6,7 @@ Non-custodial MobileCoin web wallet and DEX.
 
 ```text
 ddex/
-  artifacts/           # LLM-generated docs (gitignored, local only)
+  artifacts/           # LLM artifacts, researches, and generated docs (gitignored, local only)
   crates/
     wallet-core/       # Rust WASM library (MobileCoin crypto operations)
   frontend/            # React + TypeScript + Vite web app

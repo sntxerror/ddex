@@ -43,14 +43,14 @@ export function WalletSetupPanel({
       <Stack gap="lg">
         <div>
           <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-            Wallet setup
+            Welcome wallet
           </Text>
           <Title mt="xs" order={2}>
-            Generate or import a recovery phrase
+            Create your DDEX wallet
           </Title>
           <Text c="dimmed" mt="xs" size="sm">
-            All mnemonic validation and account derivation happens locally through the browser-loaded
-            wallet-core package.
+            Start with a fresh phrase or bring an existing one. Generation, validation, and key
+            derivation happen locally inside your browser session.
           </Text>
         </div>
 
@@ -70,9 +70,9 @@ export function WalletSetupPanel({
               <Stack gap="sm">
                 <Group justify="space-between" wrap="wrap">
                   <div>
-                    <Text fw={600}>Generate a fresh 24-word phrase</Text>
+                    <Text fw={600}>Spin up a fresh 24-word wallet</Text>
                     <Text c="dimmed" size="sm">
-                      Uses browser crypto through the Rust/WASM wallet core.
+                      Great for a first-run profile or a quick noncustodial testnet setup.
                     </Text>
                   </div>
                   <Button
@@ -102,7 +102,7 @@ export function WalletSetupPanel({
                       {wordCount} words
                     </Badge>
                     <Text c="dimmed" size="sm">
-                      Keep this phrase offline and out of screenshots.
+                      Store it offline. Screenshots are convenient and a little too adventurous.
                     </Text>
                   </Group>
                   <Button
@@ -123,7 +123,7 @@ export function WalletSetupPanel({
               <Textarea
                 autosize
                 className={styles.textarea}
-                label="Paste a BIP-39 recovery phrase"
+                label="Paste your BIP-39 recovery phrase"
                 minRows={5}
                 onChange={(event) => onDraftChange(event.currentTarget.value)}
                 placeholder="abandon ability able about above absent ..."
@@ -132,9 +132,9 @@ export function WalletSetupPanel({
               <Group className={styles.helperRow} justify="space-between" wrap="wrap">
                 <Text className={styles.helperText} size="sm">
                   {mnemonicDraft.trim().length === 0 ? (
-                    <span>Validation happens locally.</span>
+                    <span>Validation happens locally before anything is derived.</span>
                   ) : isDraftValid ? (
-                    <span className={styles.valid}>Mnemonic looks valid.</span>
+                    <span className={styles.valid}>Phrase looks valid and ready to unlock.</span>
                   ) : (
                     <span>Waiting for a valid BIP-39 English mnemonic.</span>
                   )}
