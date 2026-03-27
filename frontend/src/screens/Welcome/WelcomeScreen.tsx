@@ -14,6 +14,9 @@ export function WelcomeScreen() {
         <Text c="dimmed" maw={560} size="md">
           Rebuilt as a mobile-first wallet: real routes, local encrypted storage, and a clearer path from welcome screen to everyday vault use.
         </Text>
+        <Text c="dimmed" maw={560} size="sm">
+          After create or import, we guide users through backup, passphrase, and biometric steps before handing off to the profile flow.
+        </Text>
       </Stack>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
@@ -40,8 +43,7 @@ export function WelcomeScreen() {
 
       <Divider color="dark.4" />
       <Group justify="space-between">
-        <Text c="dimmed" size="sm">Vault / Transfer / Profile will unlock once a wallet is ready.</Text>
-        <Text c="dimmed" size="xs">LOCAL-FIRST • PWA-READY</Text>
+        <Text c="dimmed" size="sm">Vault will be unlocked once your wallet is ready.</Text>
       </Group>
     </Stack>
   )

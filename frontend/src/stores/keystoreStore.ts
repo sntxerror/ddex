@@ -102,6 +102,13 @@ export const useKeystoreStore = create<KeystoreState>((set) => ({
   },
 
   lockSession(reason) {
+    const storedVault = useKeystoreStore.getState().storedVault
+
+    if (!storedVault) {
+      useWalletStore.getState().setFeedback('Save a local passphrase before locking. Without a stored vault, locking would remove access from this device.')
+      return
+    }
+
     useWalletStore.getState().clearWallet(reason ?? 'Wallet relocked from memory.')
     set({ lastUnlockAt: null })
   },

@@ -8,6 +8,7 @@ import { useAppBootstrap } from './hooks/useAppBootstrap'
 import { AppLayout } from './layouts/AppLayout'
 import { OnboardLayout } from './layouts/OnboardLayout'
 import { useKeystoreStore } from './stores/keystoreStore'
+import { getNextOnboardingPath, useOnboardingStore } from './stores/onboardingStore'
 import { useWalletStore } from './stores/walletStore'
 
 function LoadingScreen() {
@@ -31,12 +32,17 @@ export function RootRedirect() {
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const status = useKeystoreStore((state) => state.status)
   const wasmStatus = useWalletStore((state) => state.wasmStatus)
+  const nextOnboardingPath = useOnboardingStore(getNextOnboardingPath)
 
   if (status === 'checking' || wasmStatus === 'loading' || wasmStatus === 'idle') {
     return <LoadingScreen />
   }
 
   if (walletAddress) {
+    if (nextOnboardingPath) {
+      return <Navigate replace to={nextOnboardingPath} />
+    }
+
     return <Navigate replace to="/vault" />
   }
 
@@ -48,16 +54,22 @@ export function RootRedirect() {
 }
 
 export function ProtectedAppOutlet() {
+  const location = useLocation()
   const walletAddress = useWalletStore((state) => state.address)
   const status = useKeystoreStore((state) => state.status)
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const wasmStatus = useWalletStore((state) => state.wasmStatus)
+  const nextOnboardingPath = useOnboardingStore(getNextOnboardingPath)
 
   if (status === 'checking' || wasmStatus === 'loading' || wasmStatus === 'idle') {
     return <LoadingScreen />
   }
 
   if (walletAddress) {
+    if (nextOnboardingPath && location.pathname !== nextOnboardingPath) {
+      return <Navigate replace to={nextOnboardingPath} />
+    }
+
     return <AppLayout />
   }
 
@@ -73,12 +85,21 @@ export function PublicOutlet() {
   const walletAddress = useWalletStore((state) => state.address)
   const status = useKeystoreStore((state) => state.status)
   const storedVault = useKeystoreStore((state) => state.storedVault)
+  const nextOnboardingPath = useOnboardingStore(getNextOnboardingPath)
 
   if (status === 'checking') {
     return <LoadingScreen />
   }
 
   if (walletAddress) {
+    if (nextOnboardingPath) {
+      if (location.pathname !== nextOnboardingPath) {
+        return <Navigate replace to={nextOnboardingPath} />
+      }
+
+      return <OnboardLayout />
+    }
+
     return <Navigate replace to="/vault" />
   }
 

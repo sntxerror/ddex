@@ -10,6 +10,7 @@ import { useWalletStore } from '../../stores/walletStore'
 export function ProfileScreen() {
   const navigate = useNavigate()
   const address = useWalletStore((state) => state.address)
+  const feedback = useWalletStore((state) => state.feedback)
   const lockSession = useKeystoreStore((state) => state.lockSession)
   const deleteVault = useKeystoreStore((state) => state.deleteVault)
   const storedVault = useKeystoreStore((state) => state.storedVault)
@@ -31,8 +32,12 @@ export function ProfileScreen() {
               <Text c="dimmed" size="sm">ID: APX-9921-X</Text>
             </Stack>
           </Group>
-          <Button onClick={() => lockSession('Wallet locked from profile settings.')} radius="xl" variant="default">Lock All</Button>
+          <Button disabled={!storedVault} onClick={() => lockSession('Wallet locked from profile settings.')} radius="xl" variant="default">
+            {storedVault ? 'Lock All' : 'Lock unavailable'}
+          </Button>
         </Group>
+        {!storedVault ? <Text c="dimmed" mt="sm" size="sm">Save a local passphrase first. Locking an in-memory-only wallet would otherwise remove access completely.</Text> : null}
+        {feedback ? <Text c="dimmed" mt="sm" size="sm">{feedback}</Text> : null}
       </Paper>
 
       <Grid>

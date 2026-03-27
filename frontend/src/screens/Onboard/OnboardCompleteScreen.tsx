@@ -7,7 +7,7 @@ import { useOnboardingStore } from '../../stores/onboardingStore'
 export function OnboardCompleteScreen() {
   const navigate = useNavigate()
   const score = useSecurityScore()
-  const { biometricsEnabled, mnemonicBackedUp, passphraseCreated } = useOnboardingStore()
+  const { biometricsEnabled, completeWorkflow, mnemonicBackedUp, passphraseCreated } = useOnboardingStore()
 
   return (
     <Stack gap="lg">
@@ -25,8 +25,17 @@ export function OnboardCompleteScreen() {
         <List.Item>{biometricsEnabled ? 'Biometrics enabled placeholder accepted' : 'Biometrics left disabled'}</List.Item>
       </List>
 
-      <Button gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => navigate('/vault')} radius="xl" size="lg" variant="gradient">
-        Enter Vault ({score.achieved.toFixed(1)}/10)
+      <Button
+        gradient={{ from: 'cyan', to: 'teal', deg: 135 }}
+        onClick={() => {
+          completeWorkflow()
+          navigate('/profile')
+        }}
+        radius="xl"
+        size="lg"
+        variant="gradient"
+      >
+        Continue to Profile ({score.achieved.toFixed(1)}/10)
       </Button>
     </Stack>
   )

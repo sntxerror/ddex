@@ -1,8 +1,9 @@
-import { ActionIcon, Badge, Group, Paper, Progress, Stack, Text, useMantineColorScheme } from '@mantine/core'
+import { ActionIcon, Group, Paper, Progress, Stack, Text, useMantineColorScheme } from '@mantine/core'
 import { IconMoonStars, IconSunHigh, IconX } from '@tabler/icons-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import styles from './OnboardLayout.module.css'
 import { useKeystoreStore } from '../stores/keystoreStore'
+import { useOnboardingStore } from '../stores/onboardingStore'
 import { useWalletStore } from '../stores/walletStore'
 
 const stepMap = new Map<string, { readonly index: number; readonly label: string }>([
@@ -21,11 +22,12 @@ export function OnboardLayout() {
   const { pathname } = useLocation()
   const { colorScheme, setColorScheme } = useMantineColorScheme()
   const storedVault = useKeystoreStore((state) => state.storedVault)
+  const dismissWorkflow = useOnboardingStore((state) => state.dismissWorkflow)
   const walletAddress = useWalletStore((state) => state.address)
   const step = stepMap.get(pathname) ?? { index: 0, label: 'Welcome' }
   const progress = step.index === 0 ? 0 : (step.index / 5) * 100
   const isDark = colorScheme === 'dark'
-  const closeTarget = walletAddress ? '/vault' : storedVault ? '/unlock' : '/welcome'
+  const closeTarget = walletAddress ? '/profile' : storedVault ? '/unlock' : '/welcome'
 
   return (
     <div className={styles.shell}>
@@ -51,7 +53,13 @@ export function OnboardLayout() {
               {step.index > 0 ? (
                 <ActionIcon
                   aria-label="Close onboarding"
-                  onClick={() => navigate(closeTarget)}
+                  onClick={() => {
+                    if (walletAddress) {
+                      dismissWorkflow()
+                    }
+
+                    navigate(closeTarget)
+                  }}
                   radius="xl"
                   size="lg"
                   variant="default"

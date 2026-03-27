@@ -16,12 +16,14 @@ import { ImportWalletScreen } from './screens/Onboard/ImportWalletScreen'
 import { OnboardCompleteScreen } from './screens/Onboard/OnboardCompleteScreen'
 import { TransferScreen } from './screens/Transfer/TransferScreen'
 import { ReceiveScreen } from './screens/Transfer/ReceiveScreen'
+import { AppErrorScreen } from './screens/Error/AppErrorScreen'
 import { UnlockScreen } from './screens/Unlock/UnlockScreen'
 import { VaultScreen } from './screens/Vault/VaultScreen'
 import { WelcomeScreen } from './screens/Welcome/WelcomeScreen'
 
 export const router = createBrowserRouter([
   {
+    errorElement: <AppErrorScreen />,
     path: '/',
     element: <BootstrapOutlet />,
     children: [

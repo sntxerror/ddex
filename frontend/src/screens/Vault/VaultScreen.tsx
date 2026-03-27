@@ -46,16 +46,24 @@ export function VaultScreen() {
     <Stack gap="lg">
       <Paper p="xl" radius="xl" withBorder>
         <Stack gap="md">
-          <Text c="dimmed" size="sm" tt="uppercase">Total balance</Text>
+          <Group justify="space-between" wrap="wrap">
+            <Text c="dimmed" size="sm" tt="uppercase">Total balance</Text>
+            <Badge color="cyan" leftSection={<IconLockOpen2 size={12} />} radius="xl" variant="light">
+              {storedVault ? 'UNLOCKED · SAVED' : 'UNLOCKED · MEMORY ONLY'}
+            </Badge>
+          </Group>
           <Text fw={900} size="3rem">{MOCK_BALANCE_MOB.toFixed(2)} MOB</Text>
           <Text c="dimmed">{MOCK_BALANCE_USD} USD estimate</Text>
+          <Text c="dimmed" size="sm">
+            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Stored vault detected with auto-lock timer running.' : 'Save a passphrase to enable device unlock.'}
+          </Text>
         </Stack>
       </Paper>
 
       <WarningBanner items={score.pending} />
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={12}>
           <Paper h="100%" p="lg" radius="xl" withBorder>
             <Stack gap="sm">
               <Group justify="space-between">
@@ -64,18 +72,6 @@ export function VaultScreen() {
               </Group>
               <Text>Connected via Fog Proxy</Text>
               <Text c="dimmed" size="sm">The routed shell is in place; live balance sync is the next phase.</Text>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Paper h="100%" p="lg" radius="xl" withBorder>
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Text fw={700}>Wallet status</Text>
-                <Badge color="cyan" leftSection={<IconLockOpen2 size={12} />} radius="xl" variant="light">UNLOCKED</Badge>
-              </Group>
-              <Text>{remainingMinutes !== null ? `Session valid for ${remainingMinutes}m` : 'Session active in memory'}</Text>
-              <Text c="dimmed" size="sm">{storedVault ? 'Stored vault detected with auto-lock timer running.' : 'In-memory wallet only; save a passphrase to enable device unlock.'}</Text>
             </Stack>
           </Paper>
         </Grid.Col>
