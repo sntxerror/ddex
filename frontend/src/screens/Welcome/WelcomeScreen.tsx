@@ -1,0 +1,48 @@
+import { Button, Divider, Group, SimpleGrid, Stack, Text } from '@mantine/core'
+import { IconBolt, IconFingerprint } from '@tabler/icons-react'
+import { useNavigate } from 'react-router'
+import { FeatureCard } from '../../components/FeatureCard/FeatureCard'
+
+export function WelcomeScreen() {
+  const navigate = useNavigate()
+
+  return (
+    <Stack gap="xl">
+      <Stack gap="sm">
+        <Text c="cyan.3" fw={700} size="sm" tt="uppercase">Encrypted by MobileCoin protocol</Text>
+        <Text fw={900} lh={1.05} size="2.5rem">Private payments. Decentralized exchange.</Text>
+        <Text c="dimmed" maw={560} size="md">
+          Rebuilt as a mobile-first wallet: real routes, local encrypted storage, and a clearer path from welcome screen to everyday vault use.
+        </Text>
+      </Stack>
+
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <FeatureCard
+          description="Recovery phrase generation and account derivation stay inside the browser — no backend peeking over your shoulder."
+          icon={IconFingerprint}
+          title="Zero-Knowledge"
+        />
+        <FeatureCard
+          description="A shell designed for fast send/receive flows and future fog sync, not a one-page demo that got too comfortable."
+          icon={IconBolt}
+          title="Sub-Second Finality"
+        />
+      </SimpleGrid>
+
+      <Stack gap="sm">
+        <Button gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => navigate('/onboard/create')} radius="xl" size="lg" variant="gradient">
+          Create New Wallet
+        </Button>
+        <Button onClick={() => navigate('/onboard/import')} radius="xl" size="lg" variant="default">
+          Recover Existing Wallet
+        </Button>
+      </Stack>
+
+      <Divider color="dark.4" />
+      <Group justify="space-between">
+        <Text c="dimmed" size="sm">Vault / Transfer / Profile will unlock once a wallet is ready.</Text>
+        <Text c="dimmed" size="xs">LOCAL-FIRST • PWA-READY</Text>
+      </Group>
+    </Stack>
+  )
+}

@@ -10,16 +10,36 @@ const colorSchemeManager = localStorageColorSchemeManager({
 })
 
 const theme = createTheme({
-  primaryColor: 'violet',
+  primaryColor: 'cyan',
   defaultRadius: 'lg',
+  defaultGradient: {
+    from: 'cyan',
+    to: 'teal',
+    deg: 135,
+  },
   fontFamily,
   headings: {
     fontFamily,
+  },
+  colors: {
+    dark: [
+      '#cbd5e1',
+      '#94a3b8',
+      '#64748b',
+      '#475569',
+      '#334155',
+      '#1e293b',
+      '#172033',
+      '#111827',
+      '#0f172a',
+      '#0a0e1a',
+    ],
   },
   components: {
     Paper: {
       defaultProps: {
         radius: 'xl',
+        withBorder: true,
       },
     },
     Button: {
@@ -33,6 +53,24 @@ const theme = createTheme({
         variant: 'light',
       },
     },
+    TextInput: {
+      defaultProps: {
+        radius: 'xl',
+        variant: 'filled',
+      },
+    },
+    PasswordInput: {
+      defaultProps: {
+        radius: 'xl',
+        variant: 'filled',
+      },
+    },
+    Textarea: {
+      defaultProps: {
+        radius: 'xl',
+        variant: 'filled',
+      },
+    },
   },
 })
 
@@ -40,7 +78,8 @@ export function AppThemeProvider({ children }: AppThemeProviderProps) {
   return (
     <MantineProvider
       colorSchemeManager={colorSchemeManager}
-      defaultColorScheme="light"
+      defaultColorScheme="dark"
+      forceColorScheme="dark"
       theme={theme}
     >
       <div className={styles.viewport}>{children}</div>

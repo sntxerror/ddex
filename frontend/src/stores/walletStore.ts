@@ -1,0 +1,152 @@
+import {
+  accountKeyFromMnemonic,
+  generateMnemonic,
+  getAddressForAccount,
+  initWalletCore,
+  validateMnemonic,
+  type WalletAccountKey,
+} from '@ddex/wallet-core-web'
+import { create } from 'zustand'
+
+const TESTNET_FOG_AUTHORITY_SPKI = new Uint8Array()
+
+export type WasmStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+interface DeriveWalletOptions {
+  readonly fogReportUrl: string
+  readonly successMessage?: string
+}
+
+interface WalletState {
+  readonly account: WalletAccountKey | null
+  readonly address: string
+  readonly feedback: string
+  readonly isWorking: boolean
+  readonly mnemonic: string
+  readonly mnemonicDraft: string
+  readonly wasmError: string
+  readonly wasmStatus: WasmStatus
+  clearWallet: (message?: string) => void
+  createWallet: (fogReportUrl: string) => Promise<boolean>
+  deriveWallet: (mnemonic: string, options: DeriveWalletOptions) => Promise<boolean>
+  initializeWasm: () => Promise<void>
+  setFeedback: (message: string) => void
+  setMnemonicDraft: (value: string) => void
+}
+
+function normalizeMnemonic(value: string): string {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+export function isValidWalletPassphrase(value: string): boolean {
+  return /^[A-Za-z0-9]{8,}$/.test(value.trim())
+}
+
+export const useWalletStore = create<WalletState>((set, get) => ({
+  account: null,
+  address: '',
+  feedback: '',
+  isWorking: false,
+  mnemonic: '',
+  mnemonicDraft: '',
+  wasmError: '',
+  wasmStatus: 'idle',
+
+  async initializeWasm() {
+    const { wasmStatus } = get()
+    if (wasmStatus === 'ready' || wasmStatus === 'loading') {
+      return
+    }
+
+    set({ wasmError: '', wasmStatus: 'loading' })
+
+    try {
+      await initWalletCore()
+      set({ feedback: 'wallet-core is ready for local wallet derivation.', wasmStatus: 'ready' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      set({ wasmError: message, wasmStatus: 'error' })
+    }
+  },
+
+  setMnemonicDraft(value) {
+    set({ mnemonicDraft: value })
+  },
+
+  setFeedback(message) {
+    set({ feedback: message })
+  },
+
+  async deriveWallet(mnemonic, { fogReportUrl, successMessage }) {
+    const normalizedMnemonic = normalizeMnemonic(mnemonic)
+
+    if (!normalizedMnemonic) {
+      set({ feedback: 'Paste or generate a recovery phrase first.' })
+      return false
+    }
+
+    if (!validateMnemonic(normalizedMnemonic)) {
+      set({ feedback: 'That recovery phrase is not a valid BIP-39 English mnemonic.' })
+      return false
+    }
+
+    set({ account: null, address: '', feedback: '', isWorking: true })
+
+    try {
+      const account = await accountKeyFromMnemonic(
+        normalizedMnemonic,
+        fogReportUrl,
+        TESTNET_FOG_AUTHORITY_SPKI,
+      )
+      const address = await getAddressForAccount(account)
+
+      set({
+        account,
+        address,
+        feedback: successMessage ?? 'Wallet material derived locally in the browser. No server saw the phrase.',
+        isWorking: false,
+        mnemonic: normalizedMnemonic,
+        mnemonicDraft: normalizedMnemonic,
+      })
+
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      set({ feedback: message, isWorking: false })
+      return false
+    }
+  },
+
+  async createWallet(fogReportUrl) {
+    set({ feedback: '', isWorking: true })
+
+    try {
+      const mnemonic = await generateMnemonic()
+      set({ mnemonicDraft: mnemonic })
+      return await get().deriveWallet(mnemonic, {
+        fogReportUrl,
+        successMessage: 'Fresh wallet created locally in your browser. Back it up before you blink.',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      set({ feedback: message, isWorking: false })
+      return false
+    }
+  },
+
+  clearWallet(message) {
+    set({
+      account: null,
+      address: '',
+      feedback: message ?? '',
+      isWorking: false,
+      mnemonic: '',
+      mnemonicDraft: '',
+    })
+  },
+}))
+
+export function getMnemonicWordCount(mnemonic: string): number {
+  const normalizedMnemonic = normalizeMnemonic(mnemonic)
+  return normalizedMnemonic ? normalizedMnemonic.split(' ').length : 0
+}

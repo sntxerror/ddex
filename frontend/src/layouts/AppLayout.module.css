@@ -1,0 +1,36 @@
+.shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top, rgb(34 211 238 / 0.16), transparent 28%),
+    radial-gradient(circle at 80% 20%, rgb(16 185 129 / 0.12), transparent 24%),
+    var(--ddex-bg-deep);
+}
+
+.header {
+  backdrop-filter: blur(18px);
+  background: rgb(10 14 26 / 0.82);
+  border-bottom: 1px solid rgb(148 163 184 / 0.12);
+}
+
+.main {
+  min-height: 100dvh;
+  padding: calc(68px + 1rem) 1rem calc(84px + 1rem);
+}
+
+.footer {
+  backdrop-filter: blur(18px);
+  background: rgb(10 14 26 / 0.92);
+  border-top: 1px solid rgb(148 163 184 / 0.12);
+}
+
+.frame {
+  margin: 0 auto;
+  max-width: 72rem;
+  width: 100%;
+}
+
+@media (width >= 48rem) {
+  .main {
+    padding: calc(68px + 1.5rem) 1.5rem calc(84px + 1.5rem);
+  }
+}
