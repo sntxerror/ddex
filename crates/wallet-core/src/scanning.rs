@@ -530,10 +530,15 @@ pub fn compute_key_image(
 //   - KDF:  HKDF-Blake2b512(salt="dei-salty-box", ikm=shared_secret, info="aead-key-iv") -> 44 bytes
 //   - AEAD: AES-256-GCM(key=first 32, nonce=next 12, aad=empty)
 //
-// Ciphertext format: [encrypted_data || footer]
-//   footer = 50 bytes: [32-byte ephemeral pubkey] [16-byte GCM tag] [1-byte major=1] [1-byte minor=0]
+// Ciphertext format (VersionedCryptoBox) — from mc-crypto-box/src/versioned.rs:
+//   [encrypted_data | ephemeral_pubkey(32) | gcm_tag(16) | major(1) | minor(1)]
+//   Total footer = 50 bytes (pubkey + tag + version).
+//   Version bytes are the LAST 2 bytes of the ciphertext.
+//
+// IMPORTANT: FixedTxOutSearchResult zero-pads ciphertext to 255 bytes.
+// The caller MUST truncate to the actual payload_length before calling this.
 
-const CRYPTO_BOX_FOOTER_SIZE: usize = 50;
+const CRYPTO_BOX_FOOTER_SIZE: usize = 50;  // pubkey(32) + tag(16) + version(2)
 const CRYPTO_BOX_PUBKEY_SIZE: usize = 32;
 const CRYPTO_BOX_TAG_SIZE: usize = 16;
 const CRYPTO_BOX_SALT: &[u8] = b"dei-salty-box";
@@ -545,15 +550,12 @@ fn decrypt_fog_ciphertext_inner(
     ciphertext: &[u8],
 ) -> Result<Vec<u8>, String> {
     if ciphertext.len() < CRYPTO_BOX_FOOTER_SIZE {
-        return Err("Ciphertext too short for CryptoBox footer".into());
+        return Err("Ciphertext too short for VersionedCryptoBox".into());
     }
 
-    let data_len = ciphertext.len() - CRYPTO_BOX_FOOTER_SIZE;
-    let footer = &ciphertext[data_len..];
-
-    // Check version bytes
-    let major = footer[CRYPTO_BOX_PUBKEY_SIZE + CRYPTO_BOX_TAG_SIZE];
-    let minor = footer[CRYPTO_BOX_PUBKEY_SIZE + CRYPTO_BOX_TAG_SIZE + 1];
+    // Version bytes are the last 2 bytes (footer format per official MC source)
+    let major = ciphertext[ciphertext.len() - 2];
+    let minor = ciphertext[ciphertext.len() - 1];
     if major != 1 {
         return Err(format!("Unsupported CryptoBox major version: {}", major));
     }
@@ -561,9 +563,13 @@ fn decrypt_fog_ciphertext_inner(
         return Err(format!("Unsupported CryptoBox minor version: {}", minor));
     }
 
-    // Extract ephemeral public key and GCM tag from footer
-    let ephemeral_pubkey_bytes = &footer[..CRYPTO_BOX_PUBKEY_SIZE];
-    let gcm_tag_bytes = &footer[CRYPTO_BOX_PUBKEY_SIZE..CRYPTO_BOX_PUBKEY_SIZE + CRYPTO_BOX_TAG_SIZE];
+    // Split: [encrypted_data | pubkey(32) | tag(16) | major(1) | minor(1)]
+    let data_len = ciphertext.len() - CRYPTO_BOX_FOOTER_SIZE;
+    let inner_footer = &ciphertext[data_len..ciphertext.len() - 2]; // 48 bytes
+
+    // Extract ephemeral public key and GCM tag from inner footer
+    let ephemeral_pubkey_bytes = &inner_footer[..CRYPTO_BOX_PUBKEY_SIZE];
+    let gcm_tag_bytes = &inner_footer[CRYPTO_BOX_PUBKEY_SIZE..CRYPTO_BOX_PUBKEY_SIZE + CRYPTO_BOX_TAG_SIZE];
 
     // Parse view private key as Ristretto scalar
     let view_bytes: [u8; 32] = view_private_key.try_into()
@@ -718,7 +724,8 @@ mod tests {
 
         // Build ciphertext in VersionedCryptoBox format:
         //   [encrypted_data] [ephemeral_pubkey(32)] [tag(16)] [major(1)] [minor(1)]
-        let mut ciphertext = buffer.clone();
+        let mut ciphertext = Vec::new();
+        ciphertext.extend_from_slice(&buffer);
         ciphertext.extend_from_slice(eph_public.as_bytes());
         ciphertext.extend_from_slice(tag.as_slice());
         ciphertext.push(1); // major version

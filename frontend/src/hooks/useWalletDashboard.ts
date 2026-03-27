@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { HeroPanelNotice, HeroPanelTone } from '../components/HeroPanel'
 import type { SecureStorageState } from '../components/SecureStoragePanel'
 import type { WalletSetupMode } from '../components/WalletSetupPanel'
+import { FOG_CONFIG } from '../config'
 import {
   deleteStoredWalletKeystore,
   getStoredWalletKeystoreMetadata,
@@ -19,15 +20,12 @@ import {
   type StoredWalletKeystoreMetadata,
 } from '../keystore/secureKeystore'
 import type {
-  UseWalletDashboardOptions,
   UseWalletDashboardResult,
 } from './useWalletDashboard.types'
 
-const TESTNET_FOG_AUTHORITY_SPKI = new Uint8Array()
-
 type WasmStatus = 'loading' | 'ready' | 'error'
 
-export function useWalletDashboard({ fogReportUrl }: UseWalletDashboardOptions): UseWalletDashboardResult {
+export function useWalletDashboard(): UseWalletDashboardResult {
   const [wasmStatus, setWasmStatus] = useState<WasmStatus>('loading')
   const [wasmError, setWasmError] = useState('')
   const [mode, setMode] = useState<WalletSetupMode>('create')
@@ -108,10 +106,11 @@ export function useWalletDashboard({ fogReportUrl }: UseWalletDashboardOptions):
     setWalletAccount(null)
 
     try {
+      const { fogReportUrl, fogAuthoritySpki } = FOG_CONFIG
       const account = await accountKeyFromMnemonic(
         phrase,
         fogReportUrl,
-        TESTNET_FOG_AUTHORITY_SPKI,
+        fogAuthoritySpki,
       )
       const address = await getAddressForAccount(account)
       setWalletMnemonic(phrase)

@@ -7,13 +7,12 @@ import {
   type WalletAccountKey,
 } from '@ddex/wallet-core-web'
 import { create } from 'zustand'
-
-const TESTNET_FOG_AUTHORITY_SPKI = new Uint8Array()
+import { FOG_CONFIG } from '../config'
+import { useBalanceStore } from './balanceStore'
 
 export type WasmStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 interface DeriveWalletOptions {
-  readonly fogReportUrl: string
   readonly successMessage?: string
 }
 
@@ -27,8 +26,8 @@ interface WalletState {
   readonly wasmError: string
   readonly wasmStatus: WasmStatus
   clearWallet: (message?: string) => void
-  createWallet: (fogReportUrl: string) => Promise<boolean>
-  deriveWallet: (mnemonic: string, options: DeriveWalletOptions) => Promise<boolean>
+  createWallet: () => Promise<boolean>
+  deriveWallet: (mnemonic: string, options?: DeriveWalletOptions) => Promise<boolean>
   initializeWasm: () => Promise<void>
   setFeedback: (message: string) => void
   setMnemonicDraft: (value: string) => void
@@ -77,7 +76,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ feedback: message })
   },
 
-  async deriveWallet(mnemonic, { fogReportUrl, successMessage }) {
+  async deriveWallet(mnemonic, options) {
     const normalizedMnemonic = normalizeMnemonic(mnemonic)
 
     if (!normalizedMnemonic) {
@@ -93,17 +92,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ account: null, address: '', feedback: '', isWorking: true })
 
     try {
+      const { fogReportUrl, fogAuthoritySpki } = FOG_CONFIG
       const account = await accountKeyFromMnemonic(
         normalizedMnemonic,
         fogReportUrl,
-        TESTNET_FOG_AUTHORITY_SPKI,
+        fogAuthoritySpki,
       )
       const address = await getAddressForAccount(account)
 
       set({
         account,
         address,
-        feedback: successMessage ?? 'Wallet material derived locally in the browser. No server saw the phrase.',
+        feedback: options?.successMessage ?? 'Wallet material derived locally in the browser. No server saw the phrase.',
         isWorking: false,
         mnemonic: normalizedMnemonic,
         mnemonicDraft: normalizedMnemonic,
@@ -117,14 +117,13 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     }
   },
 
-  async createWallet(fogReportUrl) {
+  async createWallet() {
     set({ feedback: '', isWorking: true })
 
     try {
       const mnemonic = await generateMnemonic()
       set({ mnemonicDraft: mnemonic })
       return await get().deriveWallet(mnemonic, {
-        fogReportUrl,
         successMessage: 'Fresh wallet created locally in your browser. Back it up before you blink.',
       })
     } catch (error) {
@@ -135,6 +134,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   clearWallet(message) {
+    useBalanceStore.getState().reset()
     set({
       account: null,
       address: '',

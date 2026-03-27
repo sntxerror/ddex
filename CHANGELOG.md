@@ -2,8 +2,25 @@
 
 ## Unreleased
 
+### Added — Fog Balance Sync
+
+- End-to-end Fog balance sync pipeline: attest → query RNG records → derive KexRng search keys → query TxOuts → decrypt VersionedCryptoBox → decode TxOutRecord → scan for ownership → check key images → sum unspent balance.
+- `frontend/src/services/fogClient.ts` — full Fog sync orchestrator with retry logic, abort-signal support, and progress callbacks.
+- `frontend/src/lib/attested.ts` — Noise NX handshake (`Noise_NX_25519_AESGCM_SHA512`) implementation for attested gRPC connections to Fog enclaves.
+- `frontend/src/lib/grpc.ts` — minimal gRPC-Web framing (encode/decode length-delimited frames with compression byte).
+- `frontend/src/lib/mc-proto.ts` — hand-rolled protobuf encoder/decoder for MobileCoin Fog messages (QueryRequest, QueryResponse, TxOutRecord, CheckKeyImages).
+- `frontend/src/stores/balanceStore.ts` — Zustand store for balance state, sync status, and `formatMob()` display helper.
+- New WASM exports in `wasm/index.ts`: `deriveKexRngSearchKeys`, `decryptFogCiphertext`, `scanTxOut`, `computeKeyImage`.
+- Wallet-core Rust additions in `crates/wallet-core/src/scanning.rs`: VersionedCryptoBox decryption (footer format), AmountV2 unmasking (HKDF-SHA512 + XOR), Pedersen commitment verification, key-image derivation.
+- Balance display on `VaultScreen` with picoMOB → MOB formatting and sync-phase progress indicator.
+- Fog authority SPKI and report URL environment variables in `.env.example`.
+
 ### Changed
 
+- Simplified Fog configuration to mainnet-only (`frontend/src/config.ts` exports a single `FOG_CONFIG` constant).
+- Envoy proxy route timeouts increased to 120s for long-running Fog queries.
+- `walletStore` now uses `FOG_CONFIG` for fog report URL and SPKI during key derivation, producing addresses that match Signal's for the same mnemonic.
+- Coerced `serde_wasm_bindgen` return values through `BigInt()` to handle Rust u64 values that arrive as JS Number (small values like `token_id = 0`) instead of BigInt.
 - Replaced the old frontend-owned WASM artifact flow with a proper pnpm workspace package in `wasm/`.
 - Switched the frontend to consume `@ddex/wallet-core-web` directly instead of importing generated files from `frontend/src/wasm`.
 - Updated CI to build `wasm/pkg/`, pass it between jobs as an artifact, and run workspace commands from the repo root.

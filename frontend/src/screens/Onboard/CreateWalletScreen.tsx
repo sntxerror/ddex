@@ -2,7 +2,6 @@ import { Badge, Button, Code, Group, Loader, Paper, Stack, Text } from '@mantine
 import { IconShieldCheck, IconStars } from '@tabler/icons-react'
 import { Navigate, useNavigate } from 'react-router'
 import { useEffect } from 'react'
-import { TESTNET_FOG_REPORT_URL } from '../../config'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { getMnemonicWordCount, useWalletStore } from '../../stores/walletStore'
 
@@ -20,7 +19,7 @@ export function CreateWalletScreen() {
       return
     }
 
-    void createWallet(TESTNET_FOG_REPORT_URL).then((ok) => {
+    void createWallet().then((ok) => {
       if (ok) {
         markWalletPrepared(false)
       }

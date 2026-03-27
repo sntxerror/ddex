@@ -3,10 +3,6 @@ import type { SecureStorageState } from '../components/SecureStoragePanel'
 import type { WalletSetupMode } from '../components/WalletSetupPanel'
 import type { StoredWalletKeystoreMetadata } from '../keystore/secureKeystore'
 
-export interface UseWalletDashboardOptions {
-  readonly fogReportUrl: string
-}
-
 export interface UseWalletDashboardResult {
   readonly copiedState: 'mnemonic' | 'address' | null
   readonly displayedMnemonic: string

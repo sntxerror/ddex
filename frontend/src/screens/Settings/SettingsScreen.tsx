@@ -77,8 +77,8 @@ export function SettingsScreen() {
           <Text fw={700}>Privacy & Security</Text>
           <Group justify="space-between">
             <Stack gap={2}>
-              <Text fw={600}>Privacy Shield</Text>
-              <Text c="dimmed" size="sm">Reduce visual exposure in shared spaces.</Text>
+              <Text fw={600}>Hide Amounts</Text>
+              <Text c="dimmed" size="sm">Reduce balance exposure in shared spaces.</Text>
             </Stack>
             <Switch checked={privacyShield} color="teal" onChange={(event) => setPrivacyShield(event.currentTarget.checked)} />
           </Group>

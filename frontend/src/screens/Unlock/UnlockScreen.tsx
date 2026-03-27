@@ -2,7 +2,6 @@ import { Alert, Button, PasswordInput, Stack, Text } from '@mantine/core'
 import { IconFingerprint } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
-import { TESTNET_FOG_REPORT_URL } from '../../config'
 import { useKeystoreStore } from '../../stores/keystoreStore'
 import { useWalletStore } from '../../stores/walletStore'
 
@@ -19,7 +18,7 @@ export function UnlockScreen() {
   }
 
   const handleUnlock = async () => {
-    const ok = await unlockVault(passphrase, TESTNET_FOG_REPORT_URL)
+    const ok = await unlockVault(passphrase)
     if (ok) {
       navigate('/wallet')
     }
@@ -57,7 +56,7 @@ export function UnlockScreen() {
       </form>
 
       <Alert color="cyan" icon={<IconFingerprint size={18} />} radius="xl" variant="light">
-        Biometric unlock is reserved for a later pass. Right now it is PIN unlock first.
+        Biometric unlock is coming soon. Right now it is PIN unlock first.
       </Alert>
 
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}

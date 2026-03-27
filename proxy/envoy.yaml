@@ -36,9 +36,9 @@ static_resources:
                             cluster: fog_test_cluster
                             auto_host_rewrite: true
                             prefix_rewrite: "/"
-                            timeout: 30s
+                            timeout: 120s
                             max_stream_duration:
-                              grpc_timeout_header_max: 30s
+                              grpc_timeout_header_max: 120s
                         - match:
                             prefix: "/test/consensus/"
                           route:
@@ -55,9 +55,9 @@ static_resources:
                             cluster: fog_prod_cluster
                             auto_host_rewrite: true
                             prefix_rewrite: "/"
-                            timeout: 30s
+                            timeout: 120s
                             max_stream_duration:
-                              grpc_timeout_header_max: 30s
+                              grpc_timeout_header_max: 120s
                         - match:
                             prefix: "/prod/consensus/"
                           route:

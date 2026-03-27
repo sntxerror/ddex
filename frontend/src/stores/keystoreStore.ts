@@ -23,7 +23,7 @@ interface KeystoreState {
   lockSession: (reason?: string) => void
   saveVault: (pin: string) => Promise<boolean>
   touchSession: () => void
-  unlockVault: (pin: string, fogReportUrl: string) => Promise<boolean>
+  unlockVault: (pin: string) => Promise<boolean>
 }
 
 export const useKeystoreStore = create<KeystoreState>((set) => ({
@@ -66,13 +66,12 @@ export const useKeystoreStore = create<KeystoreState>((set) => ({
     }
   },
 
-  async unlockVault(pin, fogReportUrl) {
+  async unlockVault(pin) {
     set({ working: true })
 
     try {
       const mnemonic = await unlockStoredWalletMnemonic(pin)
       const ok = await useWalletStore.getState().deriveWallet(mnemonic, {
-        fogReportUrl,
         successMessage: 'Wallet unlocked from the encrypted device keystore.',
       })
 

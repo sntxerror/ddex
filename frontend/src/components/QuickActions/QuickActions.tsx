@@ -8,19 +8,16 @@ export function QuickActions() {
 
   const items = [
     {
-      description: 'Deposit QR and full wallet address',
       icon: IconDownload,
       label: 'Receive',
       onClick: () => navigate('/transfer/receive'),
     },
     {
-      description: 'Prepare a private transfer',
       icon: IconArrowUpRight,
       label: 'Send',
       onClick: () => navigate('/transfer'),
     },
     {
-      description: 'Future DEX flow placeholder',
       icon: IconArrowsShuffle,
       label: 'Swap',
       onClick: undefined,
@@ -61,7 +58,6 @@ export function QuickActions() {
                   <Icon size={18} />
                 </ThemeIcon>
                 <Text fw={700} size="sm">{item.label}</Text>
-                <Text c="dimmed" size="xs" ta="center">{item.description}</Text>
               </Stack>
             </button>
           </Paper>

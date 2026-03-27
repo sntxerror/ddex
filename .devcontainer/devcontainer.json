@@ -12,5 +12,5 @@
     "8080": { "label": "Envoy Proxy", "onAutoForward": "silent" }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
-  "postStartCommand": "corepack enable && ([ -f .env ] || cp .env.example .env) && if ! pgrep -f 'node ./scripts/run-dev.mjs' >/dev/null; then nohup pnpm run dev:services > /tmp/ddex-dev.log 2>&1 & fi"
+  "postStartCommand": "bash .devcontainer/start.sh"
 }

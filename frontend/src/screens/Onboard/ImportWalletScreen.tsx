@@ -3,7 +3,6 @@ import { IconInfoCircle } from '@tabler/icons-react'
 import { validateMnemonic } from '@ddex/wallet-core-web'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
-import { TESTNET_FOG_REPORT_URL } from '../../config'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { getMnemonicWordCount, useWalletStore } from '../../stores/walletStore'
 
@@ -22,7 +21,6 @@ export function ImportWalletScreen() {
 
   const handleSubmit = async () => {
     const ok = await deriveWallet(normalizedDraft, {
-      fogReportUrl: TESTNET_FOG_REPORT_URL,
       successMessage: 'Wallet imported locally. Nice rescue operation.',
     })
 

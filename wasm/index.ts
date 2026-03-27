@@ -20,6 +20,41 @@ type GeneratedInitInput =
   | WebAssembly.Module
   | Promise<RequestInfo | URL | Response | BufferSource | WebAssembly.Module>
 
+export interface ScanResult {
+  owned: boolean
+  subaddress_index: number | null
+  value: bigint | null
+  token_id: bigint | null
+  key_image: number[] | null // 32 bytes
+  global_index: bigint
+  block_index: bigint
+  memo: DecodedMemo | null
+}
+
+export interface DecodedMemo {
+  memo_type: number
+  sender_address_hash?: number[]
+  payment_request_id?: string
+  destination_address_hash?: number[]
+  total_outlay?: string
+}
+
+export interface KexRngSearchKeys {
+  search_keys: number[][]  // each 16 bytes
+  next_index: string       // u64 as string
+}
+
+export interface TxOutData {
+  target_key: number[]
+  public_key: number[]
+  masked_value: bigint
+  masked_token_id: number[]
+  commitment: number[]
+  global_index: bigint
+  block_index: bigint
+  e_memo?: number[]
+}
+
 interface GeneratedWalletCoreModule {
   readonly default: (moduleOrPath?: GeneratedInitInput) => Promise<{ readonly memory: WebAssembly.Memory }>
   readonly generate_mnemonic: () => string
@@ -30,6 +65,30 @@ interface GeneratedWalletCoreModule {
     fogAuthoritySpki: Uint8Array,
   ) => WasmAccountKey
   readonly get_b58_address: (accountKey: WasmAccountKey) => string
+  readonly scan_tx_out: (
+    txOut: TxOutData,
+    viewPrivateKey: Uint8Array,
+    spendPrivateKey: Uint8Array,
+    numSubaddresses: bigint,
+  ) => ScanResult
+  readonly derive_kex_rng_search_keys: (
+    viewPrivateKey: Uint8Array,
+    spendPrivateKey: Uint8Array,
+    rngPubkey: Uint8Array,
+    startIndex: bigint,
+    count: number,
+  ) => KexRngSearchKeys
+  readonly compute_key_image: (
+    viewPrivateKey: Uint8Array,
+    spendPrivateKey: Uint8Array,
+    subaddressIndex: bigint,
+    txOutPublicKey: Uint8Array,
+  ) => Uint8Array
+  readonly decrypt_fog_ciphertext: (
+    viewPrivateKey: Uint8Array,
+    spendPrivateKey: Uint8Array,
+    ciphertext: Uint8Array,
+  ) => Uint8Array
 }
 
 type GeneratedModuleLoader = () => Promise<GeneratedWalletCoreModule>
@@ -132,4 +191,48 @@ export async function getAddressForAccount(accountKey: WalletAccountKey): Promis
   const module = await loadGeneratedModule()
   await initWalletCore()
   return module.get_b58_address(accountKey)
+}
+
+export async function scanTxOut(
+  txOut: TxOutData,
+  viewPrivateKey: Uint8Array,
+  spendPrivateKey: Uint8Array,
+  numSubaddresses: bigint,
+): Promise<ScanResult> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.scan_tx_out(txOut, viewPrivateKey, spendPrivateKey, numSubaddresses)
+}
+
+export async function deriveKexRngSearchKeys(
+  viewPrivateKey: Uint8Array,
+  spendPrivateKey: Uint8Array,
+  rngPubkey: Uint8Array,
+  startIndex: bigint,
+  count: number,
+): Promise<KexRngSearchKeys> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.derive_kex_rng_search_keys(viewPrivateKey, spendPrivateKey, rngPubkey, startIndex, count)
+}
+
+export async function computeKeyImage(
+  viewPrivateKey: Uint8Array,
+  spendPrivateKey: Uint8Array,
+  subaddressIndex: bigint,
+  txOutPublicKey: Uint8Array,
+): Promise<Uint8Array> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.compute_key_image(viewPrivateKey, spendPrivateKey, subaddressIndex, txOutPublicKey)
+}
+
+export async function decryptFogCiphertext(
+  viewPrivateKey: Uint8Array,
+  spendPrivateKey: Uint8Array,
+  ciphertext: Uint8Array,
+): Promise<Uint8Array> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.decrypt_fog_ciphertext(viewPrivateKey, spendPrivateKey, ciphertext)
 }

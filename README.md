@@ -8,7 +8,7 @@ Non-custodial MobileCoin web wallet and DEX.
 ddex/
   artifacts/           # LLM artifacts, researches, and generated docs (gitignored, local only)
   crates/
-    wallet-core/       # Rust WASM library (MobileCoin crypto operations)
+    wallet-core/       # Rust WASM library (MobileCoin crypto: key derivation, Fog decrypt, amount unmasking)
   frontend/            # React + TypeScript + Vite web app
   proxy/               # Envoy gRPC-Web proxy (see proxy/README.md)
   wasm/                # Workspace package for the browser wallet-core build
@@ -68,14 +68,25 @@ pnpm dev
 
 The root `pnpm dev` command first builds the `@ddex/wallet-core-web` workspace package in `wasm/pkg/`, then starts the frontend. The frontend imports the workspace package directly instead of copying generated files into `frontend/src/`.
 
-The Vite dev server starts at `http://localhost:5173` with proxies:
+The Vite dev server starts at `http://localhost:5173`. The Envoy proxy at `:8080` handles gRPC-Web routing to MobileCoin Fog and Consensus services:
 
 | Path | Target | Purpose |
 | --- | --- | --- |
+| `/prod/fog/*` | `fog.prod.mobilecoinww.com` | Mainnet Fog (view, ledger, key-image) |
+| `/prod/consensus/*` | `node1.prod.mobilecoinww.com` | Mainnet Consensus proxy |
 | `/test/fog/*` | `fog.test.mobilecoin.com` | Testnet Fog gRPC-Web proxy |
 | `/test/consensus/*` | `node1.test.mobilecoin.com` | Testnet Consensus proxy |
-| `/prod/fog/*` | `fog.prod.mobilecoinww.com` | Mainnet Fog gRPC-Web proxy |
-| `/prod/consensus/*` | `node1.prod.mobilecoinww.com` | Mainnet Consensus proxy |
+
+### Fog balance sync
+
+The wallet performs a full Fog sync loop on unlock:
+
+1. Noise NX handshake (attestation) with Fog View enclave
+2. Query for KexRng records → derive search keys in WASM
+3. Query Fog View with search keys → decrypt VersionedCryptoBox ciphertexts
+4. Decode TxOutRecord protobuf → scan for ownership and unmask amounts in WASM
+5. Check key images against Fog Ledger for spent detection
+6. Sum unspent MOB TxOuts = displayed balance
 
 ## Development
 
