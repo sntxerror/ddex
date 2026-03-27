@@ -10,6 +10,9 @@
 - Standardized root developer commands around `pnpm build:wasm`, `pnpm dev`, `pnpm build`, `pnpm lint`, and `pnpm typecheck`.
 - Migrated the active app UI from the retired Game of Life demo to a wallet-first preview built with Mantine and CSS Modules.
 - Tightened TypeScript and ESLint configuration for strict-mode frontend development.
+- Refactored the new DDEX dashboard shell into smaller focused components so the main app file stays readable and easier to extend.
+- Replaced the root `pnpm dev` concurrency wrapper with `scripts/run-dev.mjs` so proxy/frontend startup and shutdown are coordinated more gracefully.
+- Added a `stop_grace_period` to the proxy compose service to reduce noisy shutdown behavior during local dev restarts.
 
 ### Added
 
@@ -17,6 +20,10 @@
 - `wasm/package.json` as the browser-facing workspace package boundary.
 - `wasm/index.ts` as the stable wrapper around generated wallet-core artifacts.
 - Mantine theme/provider setup and structured component folders under `frontend/src/components/`.
+- `frontend/src/hooks/useWalletDashboard.ts` and `frontend/src/hooks/useWalletDashboard.types.ts` to centralize wallet/vault orchestration outside the page shell.
+- `frontend/src/components/AppHeader/`, `OverviewPanel/`, `AddressDetailsPanel/`, `SettingsGuidePanel/`, and `ViewIntro/` to break the dashboard into smaller UI blocks.
+- `frontend/src/types/appShell.ts` for shared view/navigation typing.
+- `scripts/run-dev.mjs` as a custom root dev entrypoint that builds WASM first, then runs proxy and frontend with coordinated shutdown.
 - This `CHANGELOG.md` documents architectural and developer-experience changes.
 
 ### Removed
@@ -27,5 +34,5 @@
 
 ### Notes
 
-- Root `pnpm lint` and `pnpm typecheck` are passing.
-- End-to-end validation of `pnpm build:wasm` still requires an environment with `wasm-pack` installed.
+- Frontend `pnpm lint`, `pnpm typecheck`, and `pnpm build` are passing after the dashboard-shell refactor.
+- `frontend/src/App.tsx` now acts as a coordinator rather than an all-in-one screen implementation.
