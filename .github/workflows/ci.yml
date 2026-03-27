@@ -80,6 +80,8 @@ jobs:
         run: pnpm lint
 
       - name: Build frontend (includes typecheck)
+        env:
+          VITE_MAINNET_FOG_AUTHORITY_SPKI: ${{ vars.VITE_MAINNET_FOG_AUTHORITY_SPKI }}
         run: pnpm --filter ./frontend build
 
       - name: Upload frontend artifact

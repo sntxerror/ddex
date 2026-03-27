@@ -2,7 +2,6 @@
 /// <reference types="vite-plugin-pwa/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_MC_NETWORK?: string
   readonly VITE_PROXY_URL?: string
   readonly VITE_TESTNET_FOG_REPORT_URL?: string
   readonly VITE_MAINNET_FOG_REPORT_URL?: string
