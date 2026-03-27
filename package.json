@@ -5,6 +5,7 @@
   "scripts": {
     "build:wasm": "node ./scripts/build-wasm.mjs",
     "dev": "node ./scripts/run-dev.mjs",
+    "dev:services": "node ./scripts/run-dev.mjs --skip-wasm",
     "dev:proxy": "cd proxy && docker compose up --build",
     "dev:frontend": "cd frontend && vite",
     "dev:proxy:down": "cd proxy && docker compose down",

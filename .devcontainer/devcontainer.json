@@ -11,6 +11,6 @@
     "5173": { "label": "Vite Dev", "onAutoForward": "openBrowser" },
     "8080": { "label": "Envoy Proxy", "onAutoForward": "silent" }
   },
-  "postCreateCommand": "corepack enable && ([ -f .env ] || cp .env.example .env) && pnpm install && pnpm run setup:rust",
-  "postStartCommand": "corepack enable && ([ -f .env ] || cp .env.example .env) && if ! pgrep -f 'node ./scripts/run-dev.mjs' >/dev/null; then nohup pnpm run dev > /tmp/ddex-dev.log 2>&1 & fi"
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "corepack enable && ([ -f .env ] || cp .env.example .env) && if ! pgrep -f 'node ./scripts/run-dev.mjs' >/dev/null; then nohup pnpm run dev:services > /tmp/ddex-dev.log 2>&1 & fi"
 }

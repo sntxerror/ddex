@@ -254,13 +254,15 @@ function installSignalHandlers() {
 async function main() {
   installSignalHandlers()
 
-  const buildExitCode = await runBuild()
-  if (buildExitCode !== 0) {
-    process.exit(buildExitCode)
-  }
+  if (!process.argv.includes('--skip-wasm')) {
+    const buildExitCode = await runBuild()
+    if (buildExitCode !== 0) {
+      process.exit(buildExitCode)
+    }
 
-  if (shuttingDown) {
-    process.exit(0)
+    if (shuttingDown) {
+      process.exit(0)
+    }
   }
 
   startServices()
