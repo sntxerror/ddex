@@ -64,58 +64,54 @@ jobs:
           gh run download "$RUN_ID" --name frontend-dist --dir frontend-dist/ --repo ${{ github.repository }}
 
       # --- SSH setup ---
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ vars.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host to known_hosts
+        run: ssh-keyscan -H ${{ vars.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
       # --- Upload files ---
       - name: Prepare server
         env:
-          SSH_KEY: ~/.ssh/deploy_key
           HOST: ${{ vars.DEPLOY_HOST }}
         run: |
-          ssh -i $SSH_KEY ubuntu@$HOST \
+          ssh ubuntu@$HOST \
             'sudo mkdir -p /opt/ddex/frontend /opt/ddex/proxy && sudo chown -R ubuntu:ubuntu /opt/ddex'
 
       - name: Upload frontend
         env:
-          SSH_KEY: ~/.ssh/deploy_key
           HOST: ${{ vars.DEPLOY_HOST }}
         run: |
           tar -czf /tmp/frontend.tar.gz -C frontend-dist .
-          scp -i $SSH_KEY /tmp/frontend.tar.gz ubuntu@$HOST:/tmp/frontend.tar.gz
-          ssh -i $SSH_KEY ubuntu@$HOST \
+          scp /tmp/frontend.tar.gz ubuntu@$HOST:/tmp/frontend.tar.gz
+          ssh ubuntu@$HOST \
             'rm -rf /opt/ddex/frontend/* && tar -xzf /tmp/frontend.tar.gz -C /opt/ddex/frontend && rm /tmp/frontend.tar.gz'
 
       - name: Upload proxy config
         env:
-          SSH_KEY: ~/.ssh/deploy_key
           HOST: ${{ vars.DEPLOY_HOST }}
         run: |
           tar -czf /tmp/proxy.tar.gz -C proxy Dockerfile envoy.yaml docker-compose.prod.yml .env.prod
-          scp -i $SSH_KEY /tmp/proxy.tar.gz ubuntu@$HOST:/tmp/proxy.tar.gz
-          ssh -i $SSH_KEY ubuntu@$HOST \
+          scp /tmp/proxy.tar.gz ubuntu@$HOST:/tmp/proxy.tar.gz
+          ssh ubuntu@$HOST \
             'tar -xzf /tmp/proxy.tar.gz -C /opt/ddex/proxy && rm /tmp/proxy.tar.gz'
 
       - name: Upload nginx config
         env:
-          SSH_KEY: ~/.ssh/deploy_key
           HOST: ${{ vars.DEPLOY_HOST }}
         run: |
-          scp -i $SSH_KEY deploy/nginx/privatesecure.org ubuntu@$HOST:/tmp/nginx-privatesecure.org
-          ssh -i $SSH_KEY ubuntu@$HOST \
+          scp deploy/nginx/privatesecure.org ubuntu@$HOST:/tmp/nginx-privatesecure.org
+          ssh ubuntu@$HOST \
             'sudo cp /tmp/nginx-privatesecure.org /etc/nginx/sites-available/privatesecure.org && rm /tmp/nginx-privatesecure.org'
 
       # --- Run deploy ---
       - name: Deploy
         env:
-          SSH_KEY: ~/.ssh/deploy_key
           HOST: ${{ vars.DEPLOY_HOST }}
         run: |
-          ssh -i $SSH_KEY ubuntu@$HOST 'bash -s' < scripts/deploy.sh
+          ssh ubuntu@$HOST 'bash -s' < scripts/deploy.sh
 
       - name: Verify
         run: |
@@ -125,7 +121,3 @@ jobs:
           if [ "$STATUS" != "200" ]; then
             echo "::warning::Site returned HTTP $STATUS"
           fi
-
-      - name: Cleanup SSH key
-        if: always()
-        run: rm -f ~/.ssh/deploy_key
