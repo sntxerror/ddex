@@ -1,12 +1,8 @@
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
 import { IconEye, IconEyeOff, IconWaveSquare } from '@tabler/icons-react'
-import { useNavigate } from 'react-router'
 import { MOCK_BALANCE_MOB } from '../../config'
 import { QuickActions } from '../../components/QuickActions/QuickActions'
-import { WarningBanner } from '../../components/WarningBanner/WarningBanner'
-import { useSecurityScore } from '../../hooks/useSecurityScore'
 import { useKeystoreStore } from '../../stores/keystoreStore'
-import { getNextIncompleteOnboardingPath, useOnboardingStore } from '../../stores/onboardingStore'
 import { useEffect, useState } from 'react'
 import { useUiStore } from '../../stores/uiStore'
 
@@ -19,14 +15,11 @@ const activity = [
 ] as const
 
 export function VaultScreen() {
-  const navigate = useNavigate()
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const lastUnlockAt = useKeystoreStore((state) => state.lastUnlockAt)
   const sessionDurationMs = useKeystoreStore((state) => state.sessionDurationMs)
   const amountsHidden = useUiStore((state) => state.amountsHidden)
   const toggleAmountsHidden = useUiStore((state) => state.toggleAmountsHidden)
-  const score = useSecurityScore()
-  const nextIncompleteOnboardingPath = useOnboardingStore(getNextIncompleteOnboardingPath)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -48,13 +41,6 @@ export function VaultScreen() {
 
   return (
     <Stack gap="lg">
-
-      <WarningBanner
-        items={score.pending}
-        actionLabel={nextIncompleteOnboardingPath ? 'Continue Security Setup' : undefined}
-        onAction={nextIncompleteOnboardingPath ? () => navigate(nextIncompleteOnboardingPath) : undefined}
-      />
-      
       <Paper p="xl" radius="xl" withBorder>
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap">

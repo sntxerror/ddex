@@ -2,16 +2,13 @@ import { ActionIcon, Avatar, Badge, Code, Group, Paper, Stack, Text } from '@man
 import { IconCopy, IconShieldCheck } from '@tabler/icons-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useNavigate } from 'react-router'
-import { WarningBanner } from '../../components/WarningBanner/WarningBanner'
 import { useSecurityScore } from '../../hooks/useSecurityScore'
-import { getNextIncompleteOnboardingPath, useOnboardingStore } from '../../stores/onboardingStore'
 import { createWalletAlias, formatAddress } from '../../types/wallet'
 import { useWalletStore } from '../../stores/walletStore'
 
 export function ProfileScreen() {
   const navigate = useNavigate()
   const address = useWalletStore((state) => state.address)
-  const nextIncompleteOnboardingPath = useOnboardingStore(getNextIncompleteOnboardingPath)
   const score = useSecurityScore()
   const alias = createWalletAlias(address)
   const scoreBadgeColor = score.pending.length === 0 ? 'teal' : score.achieved >= 6 ? 'cyan' : score.achieved >= 3 ? 'yellow' : 'red'
@@ -31,12 +28,6 @@ export function ProfileScreen() {
 
   return (
     <Stack gap="lg">
-      <WarningBanner
-        items={score.pending}
-        actionLabel={nextIncompleteOnboardingPath ? 'Continue Security Setup' : undefined}
-        onAction={nextIncompleteOnboardingPath ? () => navigate(nextIncompleteOnboardingPath) : undefined}
-      />
-
       <Paper p="lg" radius="xl" withBorder>
         <Stack gap="md">
           <Group align="center" justify="space-between">
