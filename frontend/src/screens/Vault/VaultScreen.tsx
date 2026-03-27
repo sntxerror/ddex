@@ -1,12 +1,12 @@
 import { ActionIcon, Badge, Button, Group, Loader, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
-import { IconEye, IconEyeOff, IconLock, IconLockOpen2, IconRefresh, IconWaveSquare, IconWifi, IconWifiOff } from '@tabler/icons-react'
+import { IconEye, IconEyeOff, IconLock, IconLockOpen2, IconRefresh, IconWaveSquare } from '@tabler/icons-react'
 import { QuickActions } from '../../components/QuickActions/QuickActions'
 import { useKeystoreStore } from '../../stores/keystoreStore'
 import { useEffect, useState } from 'react'
 import { useUiStore } from '../../stores/uiStore'
-import { useNetworkStore } from '../../stores/networkStore'
 import { useWalletStore } from '../../stores/walletStore'
 import { useBalanceStore, formatMob } from '../../stores/balanceStore'
+import styles from './VaultScreen.module.css'
 
 const activity = [
   { amount: '+12.00 MOB', badge: 'CONFIDENTIAL', title: 'Fog-Masked Receive', when: '2m ago' },
@@ -22,8 +22,6 @@ export function VaultScreen() {
   const sessionDurationMs = useKeystoreStore((state) => state.sessionDurationMs)
   const amountsHidden = useUiStore((state) => state.amountsHidden)
   const toggleAmountsHidden = useUiStore((state) => state.toggleAmountsHidden)
-  const network = useNetworkStore((state) => state.network)
-  const syncStatus = useNetworkStore((state) => state.syncStatus)
   const walletAddress = useWalletStore((state) => state.address)
   const walletAccount = useWalletStore((state) => state.account)
   const balancePicoMob = useBalanceStore((state) => state.balancePicoMob)
@@ -31,9 +29,6 @@ export function VaultScreen() {
   const balanceSyncPhase = useBalanceStore((state) => state.syncPhase)
   const balanceSyncError = useBalanceStore((state) => state.syncError)
   const syncBalance = useBalanceStore((state) => state.sync)
-  const isDisconnected = syncStatus === 'offline'
-  const networkBadgeColor = isDisconnected ? 'red' : network === 'mainnet' ? 'green' : 'yellow'
-  const networkBadgeLabel = isDisconnected ? 'disconnected' : network
   const vaultLocked = walletAddress.length === 0
   const [now, setNow] = useState(() => Date.now())
 
@@ -78,100 +73,97 @@ export function VaultScreen() {
     }
   }
 
+  const syncLabel = balanceSyncStatus === 'syncing'
+    ? `${balanceSyncPhase}…`
+    : balanceSyncStatus === 'error'
+      ? `Sync failed: ${balanceSyncError}`
+      : 'Balance synced from Fog.'
+
   return (
-    <Stack gap="lg">
-      <Paper p="xl" radius="xl" withBorder>
-        <Stack gap="md">
-          <Group justify="space-between" wrap="nowrap">
-            <Group gap="xs" align="center" wrap="nowrap">
-              <Text c="dimmed" size="sm" tt="uppercase">Total balance</Text>
-              <ActionIcon
-                aria-label={amountsHidden ? 'Show balances and transaction amounts' : 'Hide balances and transaction amounts'}
-                onClick={toggleAmountsHidden}
-                radius="xl"
-                variant="default"
-              >
-                {amountsHidden ? <IconEye size={16} /> : <IconEyeOff size={16} />}
-              </ActionIcon>
-            </Group>
-            <Group gap="xs" wrap="nowrap">
+    <Stack className={styles.root} gap="xl">
+      <Paper className={styles.heroCard} p="xl" radius="2rem" withBorder>
+        <Stack gap="xl">
+          <div className={styles.heroHeader}>
+            <div className={styles.balanceHeader}>
+              <Group className={styles.balanceTitleRow} gap="xs" align="center" wrap="nowrap">
+                <Text className={styles.balanceLabel}>Total Balance</Text>
+                <ActionIcon
+                  aria-label={amountsHidden ? 'Show balances and transaction amounts' : 'Hide balances and transaction amounts'}
+                  className={styles.visibilityButton}
+                  onClick={toggleAmountsHidden}
+                  radius="xl"
+                  variant="default"
+                >
+                  {amountsHidden ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+                </ActionIcon>
+              </Group>
+            </div>
+            <Group className={styles.statusBadges} gap="xs" wrap="nowrap">
               <Badge
-                color={networkBadgeColor}
-                leftSection={isDisconnected ? <IconWifiOff size={12} /> : <IconWifi size={12} />}
-                radius="xl"
-                variant="light"
-              >
-                {networkBadgeLabel}
-              </Badge>
-              <Badge
+                className={styles.statusBadge}
                 color={vaultLocked ? 'cyan' : storedVault ? 'yellow' : 'red'}
                 leftSection={vaultLocked ? <IconLock size={12} /> : <IconLockOpen2 size={12} />}
                 radius="xl"
                 variant="light"
               >
-                {vaultLocked ? 'locked' : storedVault ? 'unlocked · saved' : 'unlocked · unsaved'}
+                {vaultLocked ? 'Locked' : storedVault ? 'Unlocked · Saved' : 'Unlocked · Unsaved'}
               </Badge>
             </Group>
-          </Group>
-          <Group align="baseline" gap="xs">
-            <Text fw={900} size="3rem">{balanceText}</Text>
+          </div>
+
+          <Text className={styles.sessionText} c="dimmed" size="sm">
+            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Encrypted wallet is stored on this device.' : 'Wallet is currently memory-only until PIN lock is saved.'}
+          </Text>
+
+          <div className={styles.balanceRow}>
+            <Text className={styles.balanceValue} fw={900}>{balanceText}</Text>
             {balanceSyncStatus === 'syncing' ? (
-              <Loader size="sm" />
+              <span className={styles.refreshWrap}>
+                <Loader size="sm" />
+              </span>
             ) : (
               <ActionIcon
                 aria-label="Refresh balance"
+                className={styles.refreshButton}
                 disabled={!walletAccount}
                 onClick={handleSyncBalance}
                 radius="xl"
                 variant="subtle"
               >
-                <IconRefresh size={18} />
+                <IconRefresh size={22} />
               </ActionIcon>
             )}
-            {balanceSyncStatus === 'syncing' && balanceSyncPhase !== 'done' && (
-              <Text c="cyan" size="xs">{balanceSyncPhase}…</Text>
-            )}
-          </Group>
-          
-          {balanceSyncStatus === 'error' && (
-            <Text c="red" size="xs">Sync failed: {balanceSyncError}</Text>
-          )}
-          <Text c="dimmed" size="sm">
-            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Encrypted wallet is stored on this device.' : 'Wallet is currently memory-only until PIN lock is saved.'}
-          </Text>
-        </Stack>
-      </Paper>
-
-      <Paper p="lg" radius="xl" withBorder>
-        <Stack gap="md">
-          <Text fw={700}>Quick Actions</Text>
+            <Text c={balanceSyncStatus === 'error' ? 'red' : 'dimmed'} className={styles.syncText} size="xs">
+              {syncLabel}
+            </Text>
+          </div>
           <QuickActions />
         </Stack>
       </Paper>
 
-      <Paper p="lg" radius="xl" withBorder>
+      <Paper className={styles.sectionCard} p="lg" radius="2rem" withBorder>
         <Stack gap="md">
-          <Group justify="space-between">
-            <Text fw={700}>Transaction History</Text>
-            <ThemeIcon color="teal" radius="xl" variant="light"><IconWaveSquare size={18} /></ThemeIcon>
+          <Group justify="space-between" wrap="nowrap">
+            <Text className={styles.sectionTitle} fw={800}>Transaction History</Text>
+            <ThemeIcon className={styles.historyIcon} color="teal" radius="xl" variant="light"><IconWaveSquare size={18} /></ThemeIcon>
           </Group>
-          {visibleActivity.map((entry) => (
-            <Group justify="space-between" key={`${entry.title}-${entry.when}`}>
-              <Stack gap={2}>
-                <Text fw={600}>{entry.title}</Text>
-                <Text c="dimmed" size="sm">{entry.when}</Text>
-              </Stack>
-              <Stack align="flex-end" gap={2}>
-                <Text fw={700}>{formatActivityAmount(entry.amount)}</Text>
-                <Badge color="gray" radius="xl" variant="light">{entry.badge}</Badge>
-              </Stack>
-            </Group>
-          ))}
-          <Button disabled radius="xl" variant="subtle">Show all (coming soon)</Button>
+          <div className={styles.historyList}>
+            {visibleActivity.map((entry) => (
+              <div className={styles.historyItem} key={`${entry.title}-${entry.when}`}>
+                <Stack className={styles.historyMeta} gap={2}>
+                  <Text className={styles.historyTitle} fw={600}>{entry.title}</Text>
+                  <Text c="dimmed" size="sm">{entry.when}</Text>
+                </Stack>
+                <Stack align="flex-end" className={styles.historyAmount} gap={4}>
+                  <Text className={styles.historyValue} fw={800}>{formatActivityAmount(entry.amount)}</Text>
+                  <Badge color="gray" radius="xl" variant="light">{entry.badge}</Badge>
+                </Stack>
+              </div>
+            ))}
+          </div>
+          <Button className={styles.showAllButton} disabled radius="xl" variant="subtle">Show all</Button>
         </Stack>
       </Paper>
-
-      
     </Stack>
   )
 }

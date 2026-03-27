@@ -56,7 +56,7 @@ export function UnlockScreen() {
       </form>
 
       <Alert color="cyan" icon={<IconFingerprint size={18} />} radius="xl" variant="light">
-        Biometric unlock is coming soon. Right now it is PIN unlock first.
+        Biometric unlock is coming soon.
       </Alert>
 
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}

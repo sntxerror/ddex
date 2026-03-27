@@ -1,10 +1,9 @@
-import { Badge, Button, Group, Paper, PasswordInput, Radio, Stack, Switch, Text } from '@mantine/core'
+import { Badge, Button, Group, Paper, PasswordInput, Stack, Switch, Text } from '@mantine/core'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useKeystoreStore } from '../../stores/keystoreStore'
 import { useWalletStore } from '../../stores/walletStore'
 import { isValidWalletPin } from '../../stores/walletStore'
-import { useNetworkStore } from '../../stores/networkStore'
 
 export function SettingsScreen() {
   const navigate = useNavigate()
@@ -13,8 +12,6 @@ export function SettingsScreen() {
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const working = useKeystoreStore((state) => state.working)
   const feedback = useWalletStore((state) => state.feedback)
-  const network = useNetworkStore((state) => state.network)
-  const setNetwork = useNetworkStore((state) => state.setNetwork)
 
   const [privacyShield, setPrivacyShield] = useState(true)
   const [biometricUnlock, setBiometricUnlock] = useState(false)
@@ -90,18 +87,6 @@ export function SettingsScreen() {
             <Switch checked={biometricUnlock} color="teal" onChange={(event) => setBiometricUnlock(event.currentTarget.checked)} />
           </Group>
           <Button onClick={() => navigate('/profile/recovery-phrase')} radius="xl" type="button" variant="default">Recovery Phrase</Button>
-        </Stack>
-      </Paper>
-
-      <Paper p="lg" radius="xl" withBorder>
-        <Stack gap="md">
-          <Text fw={700}>Network Settings</Text>
-          <Radio.Group onChange={(value) => setNetwork(value as 'testnet' | 'mainnet')} value={network}>
-            <Stack gap="xs">
-              <Radio label="Testnet" value="testnet" />
-              <Radio label="Mainnet" value="mainnet" />
-            </Stack>
-          </Radio.Group>
         </Stack>
       </Paper>
 

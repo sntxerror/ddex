@@ -33,31 +33,21 @@ export function QuickActions() {
           <Paper
             className={styles.action}
             key={item.label}
-            p="md"
+            p={0}
             radius="xl"
             withBorder
           >
             <button
+              className={styles.button}
               disabled={!item.onClick}
               onClick={item.onClick}
-              style={{
-                appearance: 'none',
-                background: 'transparent',
-                border: 0,
-                color: 'inherit',
-                cursor: item.onClick ? 'pointer' : 'not-allowed',
-                display: 'block',
-                font: 'inherit',
-                padding: 0,
-                width: '100%',
-              }}
               type="button"
             >
-              <Stack align="center" gap="xs">
-                <ThemeIcon color="cyan" radius="xl" size="lg" variant="light">
+              <Stack align="center" className={styles.content} gap="sm">
+                <ThemeIcon className={styles.icon} color="cyan" radius="xl" size="xl" variant="light">
                   <Icon size={18} />
                 </ThemeIcon>
-                <Text fw={700} size="sm">{item.label}</Text>
+                <Text fw={700} size="md">{item.label}</Text>
               </Stack>
             </button>
           </Paper>

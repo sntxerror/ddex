@@ -1,27 +1,60 @@
 .shell {
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at top, rgb(34 211 238 / 0.16), transparent 28%),
-    radial-gradient(circle at 80% 20%, rgb(16 185 129 / 0.12), transparent 24%),
-    var(--ddex-bg-deep);
+  padding: 1.25rem 1rem calc(84px + 1.2rem);
+  background: var(--ddex-bg-deep);
   color: var(--ddex-text-primary);
 }
 
-.header {
-  backdrop-filter: blur(18px);
-  background: var(--ddex-surface-strong);
-  border-bottom: 1px solid var(--ddex-header-border);
+.headerWrap {
+  padding-top: 0.1rem;
 }
 
-.main {
-  min-height: 100dvh;
-  padding: calc(68px + 1rem) 1rem calc(84px + 1rem);
+.headerBar {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 2.75rem;
 }
 
-.footer {
+.headerControlsLeft {
+  justify-self: start;
+}
+
+.headerControlsRight {
+  justify-self: end;
+}
+
+.headerAction {
+  justify-self: center;
+}
+
+.headerTitleWrap {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.headerTitle {
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footerDock {
   backdrop-filter: blur(18px);
   background: var(--ddex-surface-strong);
+  border-radius: 1.25rem 1.25rem 0 0;
   border-top: 1px solid var(--ddex-header-border);
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  z-index: 20;
 }
 
 .frame {
@@ -31,7 +64,21 @@
 }
 
 @media (width >= 48rem) {
-  .main {
-    padding: calc(68px + 1.5rem) 1.5rem calc(84px + 1.5rem);
+  .shell {
+    padding: 1.5rem 1.5rem calc(84px + 1.4rem);
+  }
+
+  .headerBar {
+    min-height: 3rem;
+  }
+
+  .headerTitle {
+    font-size: 1.125rem;
+  }
+}
+
+@media (width < 48rem) {
+  .headerTitle {
+    font-size: 0.95rem;
   }
 }

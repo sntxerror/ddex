@@ -1,11 +1,84 @@
 .actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
 .action {
-  min-height: 5.5rem;
+  min-height: 7.25rem;
   background: linear-gradient(180deg, color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent), color-mix(in srgb, var(--ddex-bg-card) 92%, transparent));
-  border: 1px solid var(--ddex-border-strong);
+  border: 1px solid color-mix(in srgb, var(--ddex-accent-primary) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 4%, transparent);
+}
+
+.button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  height: 100%;
+  padding: 0;
+  width: 100%;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+}
+
+.content {
+  height: 100%;
+  justify-content: center;
+  min-height: 7.25rem;
+  padding: 1rem 0.9rem;
+}
+
+.icon {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ddex-accent-primary) 10%, transparent);
+}
+
+:root[data-mantine-color-scheme='dark'] .action {
+  background: color-mix(in srgb, var(--ddex-bg-card) 94%, transparent);
+  border-color: color-mix(in srgb, var(--ddex-accent-primary) 16%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 3%, transparent),
+    0 8px 20px rgb(2 6 23 / 0.18);
+}
+
+:root[data-mantine-color-scheme='dark'] .icon {
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .action {
+    transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .action:hover:has(.button:not(:disabled)) {
+    border-color: color-mix(in srgb, var(--ddex-accent-primary) 36%, transparent);
+    box-shadow:
+      0 10px 24px color-mix(in srgb, var(--ddex-accent-primary) 12%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 6%, transparent);
+    transform: translateY(-1px);
+  }
+
+  :root[data-mantine-color-scheme='dark'] .action:hover:has(.button:not(:disabled)) {
+    border-color: color-mix(in srgb, var(--ddex-accent-primary) 24%, transparent);
+    box-shadow:
+      0 10px 24px rgb(2 6 23 / 0.22),
+      inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 4%, transparent);
+  }
+}
+
+@media (width < 30rem) {
+  .actions {
+    gap: 0.65rem;
+  }
+
+  .action,
+  .content {
+    min-height: 6.4rem;
+  }
 }
