@@ -13,9 +13,17 @@
     "setup:rust": "bash ./scripts/setup-rust.sh",
     "build": "pnpm run build:wasm && pnpm --filter ./frontend build",
     "lint": "pnpm --filter ./frontend lint",
-    "typecheck": "pnpm --filter ./frontend typecheck"
+    "typecheck": "pnpm --filter ./frontend typecheck",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  },
+  "lint-staged": {
+    "frontend/src/**/*.{ts,tsx}": [
+      "eslint --max-warnings 0"
+    ]
   }
 }

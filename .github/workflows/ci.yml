@@ -78,10 +78,7 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Build frontend
+      - name: Build frontend (includes typecheck)
         run: pnpm --filter ./frontend build
 
       - name: Upload frontend artifact
