@@ -9,10 +9,12 @@
 - Updated CI to build `wasm/pkg/`, pass it between jobs as an artifact, and run workspace commands from the repo root.
 - Standardized root developer commands around `pnpm build:wasm`, `pnpm dev`, `pnpm build`, `pnpm lint`, and `pnpm typecheck`.
 - Migrated the active app UI from the retired Game of Life demo to a wallet-first preview built with Mantine and CSS Modules.
+- Expanded the wallet preview into a route-driven app experience with onboarding, unlock, protected app routes, error handling, and tabbed in-app navigation.
 - Tightened TypeScript and ESLint configuration for strict-mode frontend development.
 - Refactored the new DDEX dashboard shell into smaller focused components so the main app file stays readable and easier to extend.
 - Replaced the root `pnpm dev` concurrency wrapper with `scripts/run-dev.mjs` so proxy/frontend startup and shutdown are coordinated more gracefully.
 - Added a `stop_grace_period` to the proxy compose service to reduce noisy shutdown behavior during local dev restarts.
+- Refined wallet UX copy and layouts across onboarding, profile, vault, and settings to emphasize security status, clearer labels, and simpler flows.
 
 ### Added
 
@@ -25,12 +27,23 @@
 - `frontend/src/types/appShell.ts` for shared view/navigation typing.
 - `scripts/run-dev.mjs` as a custom root dev entrypoint that builds WASM first, then runs proxy and frontend with coordinated shutdown.
 - This `CHANGELOG.md` documents architectural and developer-experience changes.
+- Route-level frontend architecture under `frontend/src/router.tsx` and `frontend/src/routeGuards.tsx`.
+- App shell layouts with dedicated onboarding and authenticated contexts (`frontend/src/layouts/AppLayout.tsx`, `frontend/src/layouts/OnboardLayout.tsx`).
+- New wallet product screens for welcome, create/import wallet, recovery backup, PIN setup, biometric step, onboarding completion, unlock, vault, transfer/receive, profile, and settings.
+- Security-oriented state and flows via new stores and hooks (`keystoreStore`, `onboardingStore`, `uiStore`, `networkStore`, `transferStore`, `walletStore`, `useSecurityScore`, `useAutoLock`, `useAppBootstrap`).
+- Reusable wallet UI primitives including `BottomTabBar`, `QuickActions`, `SecurityScoreCard`, and `WarningBanner`.
 
 ### Removed
 
 - Legacy sync/copy workflow that pushed generated files into `frontend/src/wasm` and `frontend/public/wasm`.
 - Stale generated frontend-side WASM glue files and copied public `.wasm` artifacts.
 - Old proof-of-concept proxy log / Game of Life app wiring from the active frontend entry path.
+
+### Fixed
+
+- Onboarding continuity issues so re-entry from security reminders routes users through incomplete steps more reliably.
+- Profile and onboarding rendering regressions introduced during recent UI reshaping (including JSX/layout and theme consistency issues).
+- Minor frontend copy and settings polish regressions addressed in follow-up commits.
 
 ### Notes
 
