@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from 'react-router'
 import { useEffect } from 'react'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { getMnemonicWordCount, useWalletStore } from '../../stores/walletStore'
+import actionStyles from './OnboardActions.module.css'
 
 export function CreateWalletScreen() {
   const navigate = useNavigate()
@@ -63,8 +64,8 @@ export function CreateWalletScreen() {
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}
 
       <Group grow>
-        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel setup</Button>
-        <Button disabled={!mnemonic} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => navigate('/onboard/backup')} radius="xl" variant="gradient">
+        <Button className={actionStyles.actionButton} onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel setup</Button>
+        <Button className={actionStyles.actionButton} disabled={!mnemonic} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => navigate('/onboard/backup')} radius="xl" variant="gradient">
           Continue to Backup
         </Button>
       </Group>

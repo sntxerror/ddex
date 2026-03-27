@@ -1,8 +1,38 @@
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core'
-import { IconCopy, IconQrcode } from '@tabler/icons-react'
+import { IconArrowUpRight, IconCopy, IconDownload, IconQrcode } from '@tabler/icons-react'
+import { NavLink } from 'react-router'
 import { useTransferStore } from '../../stores/transferStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useBalanceStore, formatMob } from '../../stores/balanceStore'
+import styles from './TransferFlow.module.css'
+
+function sanitizeAmountInput(value: string): string {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '')
+  const [wholePartRaw = '', ...fractionalParts] = normalized.split('.')
+  const hasDecimal = normalized.includes('.')
+  const whole = wholePartRaw.replace(/^0+(?=\d)/, '') || (wholePartRaw ? '0' : '')
+  const cents = fractionalParts.join('').slice(0, 2)
+
+  if (!hasDecimal) {
+    return whole
+  }
+
+  return `${whole || '0'}.${cents}`
+}
+
+function formatAmountOnBlur(value: string): string {
+  const sanitized = sanitizeAmountInput(value)
+
+  if (!sanitized) {
+    return ''
+  }
+
+  const [wholePart = '0', centsPart = ''] = sanitized.split('.')
+  const whole = wholePart.replace(/^0+(?=\d)/, '') || '0'
+  const cents = centsPart.padEnd(2, '0').slice(0, 2)
+
+  return `${whole}.${cents}`
+}
 
 export function TransferScreen() {
   const amount = useTransferStore((state) => state.amount)
@@ -22,44 +52,89 @@ export function TransferScreen() {
     }
   }
 
+  const handleAmountChange = (value: string) => {
+    setAmount(sanitizeAmountInput(value))
+  }
+
+  const handleAmountBlur = () => {
+    setAmount(formatAmountOnBlur(amount))
+  }
+
   return (
-    <Stack gap="lg">
-      <Paper p="lg" radius="xl" withBorder>
-        <Stack gap="sm">
-          <Group justify="space-between">
-            <Text fw={700}>Amount to Send</Text>
-            <Button onClick={() => setAmount(balanceDisplay)} radius="xl" size="xs" variant="subtle">ALL</Button>
-          </Group>
-          <TextInput onChange={(event) => setAmount(event.currentTarget.value)} placeholder="0.00 MOB" radius="xl" value={amount} />
-          <Text c="dimmed" size="sm">Available: {amountsHidden ? '***.** MOB' : `${balanceDisplay} MOB`}</Text>
+    <Stack className={styles.root} gap="lg">
+      <div className={styles.modeTabs}>
+        <NavLink className={({ isActive }) => `${styles.modeTab} ${isActive ? styles.modeTabActive : ''}`.trim()} to="/transfer/send">
+          <span className={styles.modeTabContent}>
+            <IconArrowUpRight className={styles.modeTabIcon} size={16} />
+            <span>Send</span>
+          </span>
+        </NavLink>
+        <NavLink className={({ isActive }) => `${styles.modeTab} ${isActive ? styles.modeTabActive : ''}`.trim()} to="/transfer/receive">
+          <span className={styles.modeTabContent}>
+            <IconDownload className={styles.modeTabIcon} size={16} />
+            <span>Receive</span>
+          </span>
+        </NavLink>
+      </div>
+
+      <Paper className={styles.heroCard} p="xl" radius="2rem" withBorder>
+        <Stack gap="lg">
+          <Stack gap="xs">
+            <Text className={styles.helperText} size="sm">Enter an amount and recipient address to prepare a private transfer from your vault.</Text>
+          </Stack>
+
+          <div className={styles.fieldSection}>
+            <div className={styles.fieldLabelRow}>
+              <Text fw={700}>Amount</Text>
+              <Text className={styles.balanceMeta} size="sm">Available: {amountsHidden ? '***.** MOB' : `${balanceDisplay} MOB`}</Text>
+            </div>
+            <TextInput
+              className={`${styles.fieldInput} ${styles.amountInput}`.trim()}
+              onChange={(event) => handleAmountChange(event.currentTarget.value)}
+              onBlur={handleAmountBlur}
+              placeholder="0.00 MOB"
+              radius="xl"
+              rightSection={
+                <Button className={styles.inlineAllButton} onClick={() => setAmount(balanceDisplay)} radius="xl" size="compact-sm" variant="subtle">
+                  ALL
+                </Button>
+              }
+              rightSectionPointerEvents="all"
+              rightSectionWidth={76}
+              value={amount}
+            />
+          </div>
+
+
+          <div className={styles.fieldSection}>
+            <Text fw={700}>Receiver Address</Text>
+            <TextInput
+              className={`${styles.fieldInput} ${styles.receiverInput}`.trim()}
+              onChange={(event) => setRecipient(event.currentTarget.value)}
+              placeholder="Paste or scan a MobileCoin address"
+              radius="xl"
+              rightSection={
+                <Group className={styles.receiverActions} gap={6} mr={8} wrap="nowrap">
+                  <ActionIcon aria-label="Paste address" className={styles.addressAction} onClick={() => void pasteFromClipboard()} radius="xl" size="md" variant="subtle">
+                    <IconCopy size={18} />
+                  </ActionIcon>
+                  <ActionIcon aria-label="Scan QR" className={styles.addressAction} disabled radius="xl" size="md" variant="subtle">
+                    <IconQrcode size={18} />
+                  </ActionIcon>
+                </Group>
+              }
+              rightSectionPointerEvents="all"
+              rightSectionWidth={92}
+              value={recipient}
+            />
+          </div>
+
+
+          <Button className={styles.submitButton} disabled gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" size="lg" variant="gradient">
+            Send MOB →
+          </Button>
         </Stack>
       </Paper>
-
-      <Paper p="lg" radius="xl" withBorder>
-        <Stack gap="sm">
-          <Text fw={700}>Receiver Address</Text>
-          <TextInput
-            onChange={(event) => setRecipient(event.currentTarget.value)}
-            placeholder="Paste or scan a MobileCoin address"
-            radius="xl"
-            rightSection={
-              <Group gap={4} mr={6} wrap="nowrap">
-                <ActionIcon aria-label="Paste address" onClick={() => void pasteFromClipboard()} radius="xl" size="sm" variant="subtle">
-                  <IconCopy size={16} />
-                </ActionIcon>
-                <ActionIcon aria-label="Scan QR" disabled radius="xl" size="sm" variant="subtle">
-                  <IconQrcode size={16} />
-                </ActionIcon>
-              </Group>
-            }
-            value={recipient}
-          />
-        </Stack>
-      </Paper>
-
-      <Button disabled gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" size="lg" variant="gradient">
-        Send MOB →
-      </Button>
     </Stack>
   )
 }

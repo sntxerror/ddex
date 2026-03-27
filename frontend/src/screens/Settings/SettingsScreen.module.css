@@ -1,0 +1,114 @@
+.root {
+  margin: 0 auto;
+  max-width: 56rem;
+  width: 100%;
+}
+
+.addressRow {
+  min-width: 0;
+}
+
+.addressText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyButton {
+  color: var(--ddex-text-secondary);
+  flex-shrink: 0;
+}
+
+.securityDivider {
+  border-top: 1px solid color-mix(in srgb, var(--ddex-text-primary) 8%, transparent);
+}
+
+.securitySubsection {
+  padding-top: 0.25rem;
+}
+
+.primaryButton {
+  min-height: 3.5rem;
+}
+
+.primaryButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.secondaryButton {
+  min-height: 3.5rem;
+}
+
+.secondaryButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.dangerCard {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, rgb(239 68 68) 10%, var(--ddex-bg-card) 90%),
+      color-mix(in srgb, rgb(239 68 68) 6%, var(--ddex-bg-card-elevated) 94%)
+    );
+  border-color: color-mix(in srgb, rgb(239 68 68) 28%, var(--ddex-border-strong));
+  box-shadow:
+    var(--ddex-panel-shadow),
+    inset 0 0 0 1px color-mix(in srgb, rgb(254 202 202) 10%, transparent);
+}
+
+.dangerButton {
+  min-height: 3.5rem;
+  background: color-mix(in srgb, rgb(239 68 68) 10%, transparent);
+  border: 1px solid color-mix(in srgb, rgb(185 28 28) 18%, transparent);
+  color: rgb(127 29 29);
+}
+
+.dangerButton :global(.mantine-Button-label) {
+  color: rgb(127 29 29);
+}
+
+.dangerTitle {
+  color: rgb(127 29 29);
+}
+
+.confirmationDialog {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ddex-bg-card) 97%, transparent),
+      color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent)
+    );
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 7%, var(--ddex-border-strong));
+  box-shadow: var(--ddex-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 5%, transparent);
+}
+
+.confirmationDialogBody {
+  padding-top: 0.5rem;
+}
+
+.confirmationDialogHeader {
+  padding-bottom: 0;
+}
+
+:root[data-mantine-color-scheme='dark'] .dangerCard {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, rgb(127 29 29) 32%, var(--ddex-bg-card) 68%),
+      color-mix(in srgb, rgb(127 29 29) 22%, var(--ddex-bg-card-elevated) 78%)
+    );
+  border-color: color-mix(in srgb, rgb(248 113 113) 22%, transparent);
+}
+
+:root[data-mantine-color-scheme='dark'] .dangerButton {
+  background: color-mix(in srgb, rgb(248 113 113) 10%, transparent);
+  border-color: color-mix(in srgb, rgb(248 113 113) 18%, transparent);
+  color: rgb(252 165 165);
+}
+
+:root[data-mantine-color-scheme='dark'] .dangerButton :global(.mantine-Button-label),
+:root[data-mantine-color-scheme='dark'] .dangerTitle {
+  color: rgb(252 165 165);
+}

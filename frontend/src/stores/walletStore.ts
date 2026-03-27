@@ -61,7 +61,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
     try {
       await initWalletCore()
-      set({ feedback: 'wallet-core is ready for local wallet derivation.', wasmStatus: 'ready' })
+      set({ feedback: '', wasmStatus: 'ready' })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       set({ wasmError: message, wasmStatus: 'error' })

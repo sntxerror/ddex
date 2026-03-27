@@ -19,6 +19,7 @@ interface OnboardingState {
   completeWorkflow: () => void
   markWalletPrepared: (importFlow: boolean) => void
   reset: () => void
+  setBiometricsEnabled: (enabled: boolean) => void
   setCurrentStep: (step: OnboardingStep) => void
   skipBiometrics: () => void
   skipMnemonicBackup: () => void
@@ -150,6 +151,9 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       reset() {
         set(initialState)
+      },
+      setBiometricsEnabled(enabled) {
+        set({ biometricsEnabled: enabled, biometricsStepReviewed: true })
       },
       setCurrentStep(step) {
         void step

@@ -1,6 +1,6 @@
-import { ActionIcon, Group, Stack, Text, Tooltip, useMantineColorScheme } from '@mantine/core'
-import { IconLock, IconMoonStars, IconSunHigh } from '@tabler/icons-react'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { ActionIcon, Group, Stack, Tooltip, useMantineColorScheme } from '@mantine/core'
+import { IconLock, IconLockOpen2, IconMoonStars, IconSunHigh } from '@tabler/icons-react'
+import { Outlet, useNavigate } from 'react-router'
 import { BottomTabBar } from '../components/BottomTabBar/BottomTabBar'
 import { WarningBanner } from '../components/WarningBanner/WarningBanner'
 import { useSecurityScore } from '../hooks/useSecurityScore'
@@ -9,7 +9,6 @@ import { getNextIncompleteOnboardingPath, useOnboardingStore } from '../stores/o
 import styles from './AppLayout.module.css'
 
 export function AppLayout() {
-  const location = useLocation()
   const navigate = useNavigate()
   const { colorScheme, setColorScheme } = useMantineColorScheme()
   const score = useSecurityScore()
@@ -17,16 +16,6 @@ export function AppLayout() {
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const lockSession = useKeystoreStore((state) => state.lockSession)
   const isDark = colorScheme === 'dark'
-
-  const title = location.pathname.startsWith('/wallet')
-    ? 'Dashboard'
-    : location.pathname.startsWith('/transfer')
-      ? 'Transfer'
-      : location.pathname.startsWith('/profile')
-        ? 'Profile'
-        : location.pathname.startsWith('/settings')
-          ? 'Settings'
-          : 'DDEX'
 
 
   return (
@@ -36,7 +25,7 @@ export function AppLayout() {
           <div className={styles.headerWrap}>
             <div className={styles.headerBar}>
               <Group className={styles.headerControlsLeft} gap="xs" wrap="nowrap">
-                <Tooltip label={storedVault ? 'Lock wallet' : 'Save a PIN lock first'}>
+                <Tooltip label={storedVault ? 'Lock wallet' : 'Set a Pin Code first'}>
                   <ActionIcon
                     aria-label="Lock wallet"
                     className={styles.headerAction}
@@ -46,21 +35,17 @@ export function AppLayout() {
                         return
                       }
 
-                      lockSession('Wallet relocked from header controls.')
+                      lockSession('Wallet locked.')
                       navigate('/unlock')
                     }}
                     radius="xl"
                     size="lg"
                     variant="default"
                   >
-                    <IconLock size={18} />
+                      {storedVault ? <IconLockOpen2 size={18} /> : <IconLock size={18} />}
                   </ActionIcon>
                 </Tooltip>
               </Group>
-
-              <div className={styles.headerTitleWrap}>
-                <Text className={styles.headerTitle} fw={800}>{title}</Text>
-              </div>
 
               <Group className={styles.headerControlsRight} gap="xs" wrap="nowrap">
                 <Tooltip label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>

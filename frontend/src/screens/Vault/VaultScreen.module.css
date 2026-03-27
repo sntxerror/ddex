@@ -55,10 +55,16 @@
 }
 
 .balanceRow {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.syncStatusRow {
   align-items: center;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: inline-flex;
+  gap: 0.35rem;
 }
 
 .balanceValue {
@@ -69,15 +75,32 @@
   white-space: nowrap;
 }
 
-.refreshWrap {
-  align-items: center;
-  display: inline-flex;
-  justify-content: center;
-  min-height: 3rem;
-}
-
 .refreshButton {
   align-self: center;
+  color: var(--ddex-accent-primary);
+}
+
+.refreshButton[data-disabled],
+.refreshButton:disabled {
+  color: var(--ddex-accent-primary);
+  opacity: 0.72;
+}
+
+.refreshButtonActive {
+  color: var(--ddex-accent-primary);
+}
+
+.refreshIcon,
+.refreshIconSpinning {
+  display: block;
+  flex-shrink: 0;
+  transform: translateZ(0);
+  transform-origin: center;
+  will-change: transform;
+}
+
+.refreshIconSpinning {
+  animation: sync-spin 0.95s linear infinite;
 }
 
 .sessionText {
@@ -87,6 +110,16 @@
 .syncText {
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+@keyframes sync-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .divider {
@@ -133,6 +166,12 @@
 
 .showAllButton {
   background: linear-gradient(180deg, rgb(148 163 184 / 0.08), rgb(148 163 184 / 0.14));
+  min-height: 3.5rem;
+}
+
+.showAllButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .showAllButton:disabled {

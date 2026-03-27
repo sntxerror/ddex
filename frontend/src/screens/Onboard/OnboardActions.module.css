@@ -1,0 +1,8 @@
+.actionButton {
+  min-height: 3.5rem;
+}
+
+.actionButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}

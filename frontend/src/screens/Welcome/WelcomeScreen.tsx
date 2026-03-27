@@ -20,9 +20,9 @@ export function WelcomeScreen() {
           title="Zero-Knowledge"
         />
         <FeatureCard
-          description="A shell designed for fast send/receive flows and  fog sync."
+          description="We never touch, hold, or even see your assets—everything stays under your control on this device."
           icon={IconBolt}
-          title="Sub-Second Finality"
+          title="Zero custody"
         />
       </SimpleGrid>
 

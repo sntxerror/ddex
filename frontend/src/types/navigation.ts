@@ -1,4 +1,4 @@
-export type AppTab = 'wallet' | 'transfer' | 'profile' | 'settings'
+export type AppTab = 'wallet' | 'transfer' | 'settings'
 
 export interface AppTabDefinition {
   readonly description: string

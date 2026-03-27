@@ -93,15 +93,20 @@ export function PublicOutlet() {
   }
 
   if (walletAddress) {
+    const canStayOnBackupCheck = (
+      (nextOnboardingPath === '/onboard/backup' || nextIncompleteOnboardingPath === '/onboard/backup')
+      && location.pathname === '/onboard/backup-check'
+    )
+
     if (nextOnboardingPath) {
-      if (location.pathname !== nextOnboardingPath) {
+      if (location.pathname !== nextOnboardingPath && !canStayOnBackupCheck) {
         return <Navigate replace to={nextOnboardingPath} />
       }
 
       return <OnboardLayout />
     }
 
-    if (nextIncompleteOnboardingPath && location.pathname === nextIncompleteOnboardingPath) {
+    if (nextIncompleteOnboardingPath && (location.pathname === nextIncompleteOnboardingPath || canStayOnBackupCheck)) {
       return <OnboardLayout />
     }
 

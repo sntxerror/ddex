@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { Navigate, createBrowserRouter } from 'react-router'
 import {
   BootstrapOutlet,
   ProtectedAppOutlet,
@@ -7,8 +7,8 @@ import {
 } from './routeGuards'
 import { ProfileScreen } from './screens/Profile/ProfileScreen'
 import { RecoveryPhraseScreen } from './screens/Profile/RecoveryPhraseScreen'
-import { NetworkSettingsScreen } from './screens/Profile/NetworkSettingsScreen'
 import { BackupMnemonicScreen } from './screens/Onboard/BackupMnemonicScreen'
+import { BackupMnemonicValidationScreen } from './screens/Onboard/BackupMnemonicValidationScreen'
 import { CreatePassphraseScreen } from './screens/Onboard/CreatePassphraseScreen'
 import { CreateWalletScreen } from './screens/Onboard/CreateWalletScreen'
 import { EnableBiometricsScreen } from './screens/Onboard/EnableBiometricsScreen'
@@ -37,6 +37,7 @@ export const router = createBrowserRouter([
           { path: 'onboard/create', element: <CreateWalletScreen /> },
           { path: 'onboard/import', element: <ImportWalletScreen /> },
           { path: 'onboard/backup', element: <BackupMnemonicScreen /> },
+          { path: 'onboard/backup-check', element: <BackupMnemonicValidationScreen /> },
           { path: 'onboard/pin', element: <CreatePassphraseScreen /> },
           { path: 'onboard/biometrics', element: <EnableBiometricsScreen /> },
           { path: 'onboard/complete', element: <OnboardCompleteScreen /> },
@@ -46,12 +47,12 @@ export const router = createBrowserRouter([
         element: <ProtectedAppOutlet />,
         children: [
           { path: 'wallet', element: <VaultScreen /> },
-          { path: 'transfer', element: <TransferScreen /> },
+          { path: 'transfer', element: <Navigate replace to="/transfer/send" /> },
+          { path: 'transfer/send', element: <TransferScreen /> },
           { path: 'transfer/receive', element: <ReceiveScreen /> },
           { path: 'profile', element: <ProfileScreen /> },
           { path: 'settings', element: <SettingsScreen /> },
-          { path: 'profile/recovery-phrase', element: <RecoveryPhraseScreen /> },
-          { path: 'profile/network', element: <NetworkSettingsScreen /> },
+          { path: 'settings/recovery-phrase', element: <RecoveryPhraseScreen /> },
         ],
       },
     ],

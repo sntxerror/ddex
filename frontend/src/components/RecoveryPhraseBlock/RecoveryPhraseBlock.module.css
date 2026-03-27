@@ -1,0 +1,21 @@
+.root {
+  position: relative;
+}
+
+.copyButton {
+  position: absolute;
+  right: 0.85rem;
+  top: 0.85rem;
+  z-index: 1;
+}
+
+.code {
+  display: block;
+  font-family: "Fira Code", "Courier New", monospace;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  line-height: 1.8;
+  padding: 20px;
+  padding-right: 56px;
+  white-space: pre;
+}

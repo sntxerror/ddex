@@ -3,13 +3,15 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { useWalletStore } from '../../stores/walletStore'
+import actionStyles from './OnboardActions.module.css'
 
 export function EnableBiometricsScreen() {
   const navigate = useNavigate()
   const mnemonic = useWalletStore((state) => state.mnemonic)
+  const biometricsEnabled = useOnboardingStore((state) => state.biometricsEnabled)
   const completeBiometrics = useOnboardingStore((state) => state.completeBiometrics)
   const skipBiometrics = useOnboardingStore((state) => state.skipBiometrics)
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState(biometricsEnabled)
 
   if (!mnemonic) {
     return <Navigate replace to="/onboard/create" />
@@ -34,6 +36,7 @@ export function EnableBiometricsScreen() {
 
       <Group grow>
         <Button
+          className={actionStyles.actionButton}
           onClick={() => {
             skipBiometrics()
             navigate('/onboard/complete')
@@ -44,6 +47,7 @@ export function EnableBiometricsScreen() {
           Skip this step
         </Button>
         <Button
+          className={actionStyles.actionButton}
           gradient={{ from: 'cyan', to: 'teal', deg: 135 }}
           onClick={() => {
             completeBiometrics(enabled)

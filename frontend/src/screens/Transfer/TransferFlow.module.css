@@ -1,0 +1,266 @@
+.root {
+  margin: 0 auto;
+  max-width: 56rem;
+  width: 100%;
+}
+
+.modeTabs {
+  align-items: end;
+  border-bottom: 1px solid color-mix(in srgb, var(--ddex-text-primary) 8%, transparent);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modeTab {
+  border-bottom: 2px solid transparent;
+  color: var(--ddex-text-secondary);
+  display: flex;
+  font-size: 1.02rem;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: -0.01em;
+  min-height: 3rem;
+  padding: 0.35rem 0.25rem 0.9rem;
+  text-decoration: none;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.modeTabContent {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  justify-content: center;
+}
+
+.modeTabIcon {
+  flex-shrink: 0;
+}
+
+.modeTabActive {
+  border-bottom-color: var(--ddex-accent-primary);
+  color: var(--ddex-text-primary);
+}
+
+.heroCard,
+.sectionCard {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ddex-bg-card) 97%, transparent),
+      color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent)
+    );
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 7%, var(--ddex-border-strong));
+  box-shadow: var(--ddex-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 5%, transparent);
+}
+
+.heroCard {
+  overflow: hidden;
+}
+
+.sectionTitle {
+  letter-spacing: -0.02em;
+}
+
+.helperText {
+  color: var(--ddex-text-secondary);
+}
+
+.fieldLabelRow {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.fieldSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fieldDivider {
+  background: color-mix(in srgb, var(--ddex-text-primary) 8%, transparent);
+  height: 1px;
+  width: 100%;
+}
+
+.fieldInput :global(.mantine-TextInput-input) {
+  background: color-mix(in srgb, var(--ddex-bg-card-elevated) 84%, var(--ddex-bg-card));
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 8%, var(--ddex-border-strong));
+  border-radius: 1.15rem;
+  color: var(--ddex-text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+  min-height: 3.5rem;
+  padding-inline: 1rem;
+}
+
+.amountInput :global(.mantine-TextInput-input) {
+  padding-right: 4.75rem;
+}
+
+.receiverInput :global(.mantine-TextInput-input) {
+  padding-right: 6rem;
+}
+
+.fieldInput :global(.mantine-TextInput-section) {
+  color: var(--ddex-text-secondary);
+}
+
+.balanceMeta {
+  color: var(--ddex-text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.allButton {
+  color: var(--ddex-accent-primary);
+  font-weight: 700;
+}
+
+.inlineAllButton {
+  color: var(--ddex-accent-primary);
+  font-weight: 700;
+  margin-right: 0.3rem;
+  min-width: auto;
+  padding-inline: 0.55rem;
+}
+
+.submitButton {
+  min-height: 3.5rem;
+}
+
+.submitButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.actionButton {
+  min-height: 3.5rem;
+}
+
+.actionButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.addressPanel {
+  align-items: center;
+  background: color-mix(in srgb, var(--ddex-bg-card-elevated) 84%, var(--ddex-bg-card));
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 8%, var(--ddex-border-strong));
+  border-radius: 1.35rem;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: space-between;
+  min-height: 3.7rem;
+  padding: 0.35rem 0.45rem 0.35rem 1rem;
+}
+
+.addressValue {
+  color: var(--ddex-text-primary);
+  font-family: ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, monospace;
+  font-size: 0.98rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addressActions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+
+.addressAction {
+  color: var(--ddex-text-secondary);
+}
+
+.receiverActions {
+  align-items: center;
+}
+
+.receiverActions .addressAction {
+  min-height: 2rem;
+  min-width: 2rem;
+}
+
+.addressAction:disabled,
+.addressAction[data-disabled] {
+  opacity: 0.48;
+}
+
+.qrFrame {
+  align-items: center;
+  background: color-mix(in srgb, var(--ddex-bg-card-elevated) 72%, var(--ddex-bg-card));
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 7%, transparent);
+  border-radius: 1.5rem;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.4rem;
+  min-height: 20rem;
+  padding: 1.25rem;
+}
+
+.receiveQrWrap {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.2rem;
+}
+
+.receiveMeta {
+  margin-top: 0.15rem;
+}
+
+.receiveAddressRow {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.receiveAddressText {
+  color: var(--ddex-text-secondary);
+  font-family: ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, monospace;
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.receiveActions {
+  margin-top: 0.5rem;
+}
+
+.receiveInlineActions {
+  margin-top: 0.15rem;
+}
+
+.receiveInlineAction {
+  min-height: 2.75rem;
+  padding-inline: 0.85rem;
+}
+
+.receiveInlineAction :global(.mantine-Button-label) {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+@media (width < 48rem) {
+  .modeTab {
+    font-size: 0.98rem;
+  }
+
+  .fieldInput :global(.mantine-TextInput-input),
+  .addressPanel,
+  .submitButton {
+    min-height: 3.5rem;
+  }
+
+  .qrFrame {
+    min-height: 16rem;
+  }
+}

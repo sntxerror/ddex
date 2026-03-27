@@ -1,5 +1,5 @@
-import { ActionIcon, Badge, Button, Group, Loader, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
-import { IconEye, IconEyeOff, IconLock, IconLockOpen2, IconRefresh, IconWaveSquare } from '@tabler/icons-react'
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
+import { IconEye, IconEyeOff, IconRefresh, IconWaveSquare } from '@tabler/icons-react'
 import { QuickActions } from '../../components/QuickActions/QuickActions'
 import { useKeystoreStore } from '../../stores/keystoreStore'
 import { useEffect, useState } from 'react'
@@ -22,14 +22,12 @@ export function VaultScreen() {
   const sessionDurationMs = useKeystoreStore((state) => state.sessionDurationMs)
   const amountsHidden = useUiStore((state) => state.amountsHidden)
   const toggleAmountsHidden = useUiStore((state) => state.toggleAmountsHidden)
-  const walletAddress = useWalletStore((state) => state.address)
   const walletAccount = useWalletStore((state) => state.account)
   const balancePicoMob = useBalanceStore((state) => state.balancePicoMob)
   const balanceSyncStatus = useBalanceStore((state) => state.syncStatus)
   const balanceSyncPhase = useBalanceStore((state) => state.syncPhase)
   const balanceSyncError = useBalanceStore((state) => state.syncError)
   const syncBalance = useBalanceStore((state) => state.sync)
-  const vaultLocked = walletAddress.length === 0
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -68,7 +66,7 @@ export function VaultScreen() {
   const formatActivityAmount = (amount: string) => (amountsHidden ? '***.** MOB' : amount)
 
   const handleSyncBalance = () => {
-    if (walletAccount) {
+    if (walletAccount && balanceSyncStatus !== 'syncing') {
       void syncBalance(walletAccount)
     }
   }
@@ -77,12 +75,15 @@ export function VaultScreen() {
     ? `${balanceSyncPhase}…`
     : balanceSyncStatus === 'error'
       ? `Sync failed: ${balanceSyncError}`
-      : 'Balance synced from Fog.'
+      : 'Re-sync with Fog'
 
   return (
     <Stack className={styles.root} gap="xl">
       <Paper className={styles.heroCard} p="xl" radius="2rem" withBorder>
         <Stack gap="xl">
+          <Text className={styles.sessionText} c="dimmed" size="sm">
+            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Encrypted wallet is stored on this device.' : 'Wallet is currently memory-only until PIN lock is saved.'}
+          </Text>
           <div className={styles.heroHeader}>
             <div className={styles.balanceHeader}>
               <Group className={styles.balanceTitleRow} gap="xs" align="center" wrap="nowrap">
@@ -98,50 +99,33 @@ export function VaultScreen() {
                 </ActionIcon>
               </Group>
             </div>
-            <Group className={styles.statusBadges} gap="xs" wrap="nowrap">
-              <Badge
-                className={styles.statusBadge}
-                color={vaultLocked ? 'cyan' : storedVault ? 'yellow' : 'red'}
-                leftSection={vaultLocked ? <IconLock size={12} /> : <IconLockOpen2 size={12} />}
-                radius="xl"
-                variant="light"
-              >
-                {vaultLocked ? 'Locked' : storedVault ? 'Unlocked · Saved' : 'Unlocked · Unsaved'}
-              </Badge>
-            </Group>
           </div>
 
-          <Text className={styles.sessionText} c="dimmed" size="sm">
-            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Encrypted wallet is stored on this device.' : 'Wallet is currently memory-only until PIN lock is saved.'}
-          </Text>
+          
 
           <div className={styles.balanceRow}>
             <Text className={styles.balanceValue} fw={900}>{balanceText}</Text>
-            {balanceSyncStatus === 'syncing' ? (
-              <span className={styles.refreshWrap}>
-                <Loader size="sm" />
-              </span>
-            ) : (
+            <div className={styles.syncStatusRow}>
               <ActionIcon
-                aria-label="Refresh balance"
-                className={styles.refreshButton}
-                disabled={!walletAccount}
+                aria-label={balanceSyncStatus === 'syncing' ? 'Balance sync in progress' : 'Refresh balance'}
+                className={`${styles.refreshButton} ${balanceSyncStatus === 'syncing' ? styles.refreshButtonActive : ''}`.trim()}
+                disabled={!walletAccount || balanceSyncStatus === 'syncing'}
                 onClick={handleSyncBalance}
                 radius="xl"
                 variant="subtle"
               >
-                <IconRefresh size={22} />
+                <IconRefresh className={balanceSyncStatus === 'syncing' ? styles.refreshIconSpinning : styles.refreshIcon} size={22} />
               </ActionIcon>
-            )}
-            <Text c={balanceSyncStatus === 'error' ? 'red' : 'dimmed'} className={styles.syncText} size="xs">
-              {syncLabel}
-            </Text>
+              <Text c={balanceSyncStatus === 'error' ? 'red' : 'cyan'} className={styles.syncText} size="xs">
+                {syncLabel}
+              </Text>
+            </div>
           </div>
           <QuickActions />
         </Stack>
       </Paper>
 
-      <Paper className={styles.sectionCard} p="lg" radius="2rem" withBorder>
+      <Paper className={styles.sectionCard} p="xl" radius="2rem" withBorder>
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap">
             <Text className={styles.sectionTitle} fw={800}>Transaction History</Text>

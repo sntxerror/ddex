@@ -14,6 +14,13 @@
   margin: 0 auto;
 }
 
+.lockedTitleIcon {
+  align-items: center;
+  color: var(--ddex-text-primary);
+  display: inline-flex;
+  min-height: 2rem;
+}
+
 .panel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--ddex-bg-card) 96%, transparent), color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent));
   border: 1px solid var(--ddex-border-strong);

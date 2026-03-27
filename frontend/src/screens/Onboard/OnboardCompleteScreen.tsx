@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { SecurityScoreCard } from '../../components/SecurityScoreCard/SecurityScoreCard'
 import { useSecurityScore } from '../../hooks/useSecurityScore'
 import { useOnboardingStore } from '../../stores/onboardingStore'
+import actionStyles from './OnboardActions.module.css'
 
 export function OnboardCompleteScreen() {
   const navigate = useNavigate()
@@ -26,16 +27,17 @@ export function OnboardCompleteScreen() {
       </List>
 
       <Button
+        className={actionStyles.actionButton}
         gradient={{ from: 'cyan', to: 'teal', deg: 135 }}
         onClick={() => {
           completeWorkflow()
-          navigate('/profile')
+          navigate('/wallet')
         }}
         radius="xl"
         size="lg"
         variant="gradient"
       >
-        Continue to Profile ({score.achieved.toFixed(1)}/10)
+        Open Wallet ({score.achieved.toFixed(1)}/10)
       </Button>
     </Stack>
   )

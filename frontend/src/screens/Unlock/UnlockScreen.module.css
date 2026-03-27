@@ -1,0 +1,38 @@
+.submitButton {
+  min-height: 3.5rem;
+}
+
+.submitButton :global(.mantine-Button-label) {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.biometricCallout {
+  background: color-mix(in srgb, var(--ddex-accent-primary) 16%, transparent);
+  border-radius: 999px;
+  padding: 1rem 1.25rem;
+}
+
+.biometricGroup {
+  margin: 0 auto;
+  width: fit-content;
+}
+
+.biometricFingerprint {
+  color: var(--ddex-accent-primary);
+  flex-shrink: 0;
+}
+
+.biometricText {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+:root[data-mantine-color-scheme='dark'] .submitButton[data-disabled],
+:root[data-mantine-color-scheme='dark'] .submitButton:disabled {
+  background: color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ddex-text-primary) 6%, transparent);
+  color: color-mix(in srgb, var(--ddex-text-primary) 52%, transparent);
+  opacity: 1;
+}

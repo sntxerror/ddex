@@ -1,5 +1,6 @@
-import { Alert, Button, Stack, Text } from '@mantine/core'
+import { Button, Paper, Stack, Text } from '@mantine/core'
 import { IconAlertTriangle } from '@tabler/icons-react'
+import styles from './WarningBanner.module.css'
 
 interface WarningBannerProps {
   readonly items: string[]
@@ -19,17 +20,25 @@ export function WarningBanner({
   }
 
   return (
-    <Alert color="red" icon={<IconAlertTriangle size={18} />} radius="xl" title={title} variant="light">
-      <Stack gap="md">
-        <Text c="red" size="sm">
-          Your wallet is considered temporary until the recovery phrase is backed up, and is not secure until PIN lock and biometrics are configured.
-        </Text>
+    <Paper className={styles.card} p="xl" radius="2rem" withBorder>
+      <div className={styles.content}>
+        <Stack className={styles.copy} gap="md">
+          <div className={styles.header}>
+            <IconAlertTriangle className={styles.icon} size={18} />
+            <Text className={styles.title} fw={700}>
+              {title}
+            </Text>
+          </div>
+          <Text className={styles.bodyText} size="sm">
+            Your wallet is considered temporary until the recovery phrase is backed up, and is not secure until PIN lock and biometrics are configured.
+          </Text>
+        </Stack>
         {actionLabel && onAction ? (
-          <Button onClick={onAction} radius="xl" size="sm" variant="light">
+          <Button className={styles.actionButton} onClick={onAction} radius="xl" variant="default">
             {actionLabel}
           </Button>
         ) : null}
-      </Stack>
-    </Alert>
+      </div>
+    </Paper>
   )
 }

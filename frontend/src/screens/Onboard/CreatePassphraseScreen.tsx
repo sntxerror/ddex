@@ -1,9 +1,11 @@
-import { PasswordInput, Button, Group, Stack, Text } from '@mantine/core'
+import { Button, Group, Stack, Text } from '@mantine/core'
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router'
+import { PinInputField } from '../../components/PinInputField/PinInputField'
 import { useKeystoreStore } from '../../stores/keystoreStore'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { isValidWalletPin, useWalletStore } from '../../stores/walletStore'
+import actionStyles from './OnboardActions.module.css'
 
 export function CreatePassphraseScreen() {
   const mnemonic = useWalletStore((state) => state.mnemonic)
@@ -39,20 +41,22 @@ export function CreatePassphraseScreen() {
         }}
       >
         <Stack gap="md">
-          <PasswordInput
-            autoComplete="new-password"
+          <PinInputField
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
             inputMode="numeric"
-            label="PIN code"
             name="new-device-pin"
             onChange={(event) => setPin(event.currentTarget.value.replace(/\D+/g, '').slice(0, 8))}
             placeholder="Enter 4–8 digits"
             radius="xl"
             value={pin}
           />
-          <PasswordInput
-            autoComplete="new-password"
+          <PinInputField
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
             inputMode="numeric"
-            label="Confirm PIN code"
             name="confirm-device-pin"
             onChange={(event) => setConfirmPin(event.currentTarget.value.replace(/\D+/g, '').slice(0, 8))}
             placeholder="Repeat PIN code"
@@ -65,6 +69,7 @@ export function CreatePassphraseScreen() {
 
           <Group grow>
             <Button
+              className={actionStyles.actionButton}
               onClick={() => {
                 skipPassphrase()
               }}
@@ -74,8 +79,8 @@ export function CreatePassphraseScreen() {
             >
               Skip this step
             </Button>
-            <Button disabled={!isValid || !matches || working} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" type="submit" variant="gradient">
-              Save PIN Lock
+            <Button className={actionStyles.actionButton} disabled={!isValid || !matches || working} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" type="submit" variant="gradient">
+              Set Pin
             </Button>
           </Group>
         </Stack>

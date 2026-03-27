@@ -108,7 +108,7 @@ export const useKeystoreStore = create<KeystoreState>((set) => ({
       return
     }
 
-    useWalletStore.getState().clearWallet(reason ?? 'Wallet relocked from memory.')
+    useWalletStore.getState().clearWallet(reason ?? 'Wallet locked.')
     set({ lastUnlockAt: null })
   },
 

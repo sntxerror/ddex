@@ -1,5 +1,5 @@
 import { ActionIcon, Group, Paper, Progress, Stack, Text, useMantineColorScheme } from '@mantine/core'
-import { IconMoonStars, IconSunHigh, IconX } from '@tabler/icons-react'
+import { IconLock, IconMoonStars, IconSunHigh, IconX } from '@tabler/icons-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import styles from './OnboardLayout.module.css'
 import { useKeystoreStore } from '../stores/keystoreStore'
@@ -12,6 +12,7 @@ const stepMap = new Map<string, { readonly index: number; readonly label: string
   ['/onboard/create', { index: 1, label: 'Create wallet' }],
   ['/onboard/import', { index: 1, label: 'Import wallet' }],
   ['/onboard/backup', { index: 2, label: 'Backup phrase' }],
+  ['/onboard/backup-check', { index: 2, label: 'Verify backup' }],
   ['/onboard/pin', { index: 3, label: 'PIN lock' }],
   ['/onboard/biometrics', { index: 4, label: 'Biometrics' }],
   ['/onboard/complete', { index: 5, label: 'Complete' }],
@@ -27,7 +28,8 @@ export function OnboardLayout() {
   const step = stepMap.get(pathname) ?? { index: 0, label: 'Welcome' }
   const progress = step.index === 0 ? 0 : (step.index / 5) * 100
   const isDark = colorScheme === 'dark'
-  const closeTarget = walletAddress ? '/profile' : storedVault ? '/unlock' : '/welcome'
+  const isLockedScreen = pathname === '/unlock'
+  const closeTarget = walletAddress ? '/wallet' : storedVault ? '/unlock' : '/welcome'
 
   return (
     <div className={styles.shell}>
@@ -35,8 +37,14 @@ export function OnboardLayout() {
         <Stack gap="lg">
           <Group align="flex-start" justify="space-between" wrap="nowrap">
             <Stack gap="xs">
-              <Text fw={800} size="xl">{step.label}</Text>
-              <Progress color="cyan" radius="xl" size="sm" value={progress} />
+              {isLockedScreen ? (
+                <div aria-label="Locked" className={styles.lockedTitleIcon} role="img">
+                  <IconLock size={24} stroke={2.2} />
+                </div>
+              ) : (
+                <Text fw={800} size="xl">{step.label}</Text>
+              )}
+              {isLockedScreen ? null : <Progress color="cyan" radius="xl" size="sm" value={progress} />}
             </Stack>
 
             <Group gap="xs" wrap="nowrap">

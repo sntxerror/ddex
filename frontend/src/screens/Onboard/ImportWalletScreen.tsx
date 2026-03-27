@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { getMnemonicWordCount, useWalletStore } from '../../stores/walletStore'
+import actionStyles from './OnboardActions.module.css'
 
 export function ImportWalletScreen() {
   const navigate = useNavigate()
@@ -60,8 +61,8 @@ export function ImportWalletScreen() {
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}
 
       <Group grow>
-        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel import</Button>
-        <Button disabled={!isValid || isWorking} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => void handleSubmit()} radius="xl" variant="gradient">
+        <Button className={actionStyles.actionButton} onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel import</Button>
+        <Button className={actionStyles.actionButton} disabled={!isValid || isWorking} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => void handleSubmit()} radius="xl" variant="gradient">
           Import Wallet
         </Button>
       </Group>
