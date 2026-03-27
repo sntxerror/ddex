@@ -1,31 +1,32 @@
-import { Badge, Button, Grid, Group, Paper, PasswordInput, Stack, Text, ThemeIcon } from '@mantine/core'
-import { IconCircleCheckFilled, IconLockOpen2, IconShieldCheck, IconWaveSquare } from '@tabler/icons-react'
-import { MOCK_BALANCE_MOB, MOCK_BALANCE_USD } from '../../config'
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
+import { IconEye, IconEyeOff, IconWaveSquare } from '@tabler/icons-react'
+import { useNavigate } from 'react-router'
+import { MOCK_BALANCE_MOB } from '../../config'
 import { QuickActions } from '../../components/QuickActions/QuickActions'
-import { SecurityScoreCard } from '../../components/SecurityScoreCard/SecurityScoreCard'
 import { WarningBanner } from '../../components/WarningBanner/WarningBanner'
 import { useSecurityScore } from '../../hooks/useSecurityScore'
 import { useKeystoreStore } from '../../stores/keystoreStore'
-import { useWalletStore } from '../../stores/walletStore'
+import { getNextIncompleteOnboardingPath, useOnboardingStore } from '../../stores/onboardingStore'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useUiStore } from '../../stores/uiStore'
 
 const activity = [
   { amount: '+12.00 MOB', badge: 'CONFIDENTIAL', title: 'Fog-Masked Receive', when: '2m ago' },
   { amount: '-4.50 MOB', badge: 'VERIFIED', title: 'Outbound Transfer', when: '19m ago' },
   { amount: '+1.28 MOB', badge: 'CONFIDENTIAL', title: 'Inbound Settlement', when: 'Yesterday' },
+  { amount: '-0.72 MOB', badge: 'VERIFIED', title: 'Fee Settlement', when: '2d ago' },
+  { amount: '+8.16 MOB', badge: 'CONFIDENTIAL', title: 'Private Receive', when: '4d ago' },
 ] as const
 
 export function VaultScreen() {
   const navigate = useNavigate()
-  const feedback = useWalletStore((state) => state.feedback)
-  const saveVault = useKeystoreStore((state) => state.saveVault)
   const storedVault = useKeystoreStore((state) => state.storedVault)
-  const working = useKeystoreStore((state) => state.working)
   const lastUnlockAt = useKeystoreStore((state) => state.lastUnlockAt)
   const sessionDurationMs = useKeystoreStore((state) => state.sessionDurationMs)
+  const amountsHidden = useUiStore((state) => state.amountsHidden)
+  const toggleAmountsHidden = useUiStore((state) => state.toggleAmountsHidden)
   const score = useSecurityScore()
-  const [newPassphrase, setNewPassphrase] = useState('')
+  const nextIncompleteOnboardingPath = useOnboardingStore(getNextIncompleteOnboardingPath)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -41,74 +42,36 @@ export function VaultScreen() {
   const remainingMinutes = lastUnlockAt
     ? Math.max(0, Math.round((lastUnlockAt + sessionDurationMs - now) / 60_000))
     : null
+  const visibleActivity = activity.slice(0, 3)
+  const balanceText = amountsHidden ? '***.** MOB' : `${MOCK_BALANCE_MOB.toFixed(2)} MOB`
+  const formatActivityAmount = (amount: string) => (amountsHidden ? '***.** MOB' : amount)
 
   return (
     <Stack gap="lg">
+
+      <WarningBanner
+        items={score.pending}
+        actionLabel={nextIncompleteOnboardingPath ? 'Continue Security Setup' : undefined}
+        onAction={nextIncompleteOnboardingPath ? () => navigate(nextIncompleteOnboardingPath) : undefined}
+      />
+      
       <Paper p="xl" radius="xl" withBorder>
         <Stack gap="md">
-          <Group justify="space-between" wrap="wrap">
+          <Group justify="space-between" wrap="nowrap">
             <Text c="dimmed" size="sm" tt="uppercase">Total balance</Text>
-            <Badge color="cyan" leftSection={<IconLockOpen2 size={12} />} radius="xl" variant="light">
-              {storedVault ? 'UNLOCKED · SAVED' : 'UNLOCKED · MEMORY ONLY'}
-            </Badge>
+            <ActionIcon
+              aria-label={amountsHidden ? 'Show balances and transaction amounts' : 'Hide balances and transaction amounts'}
+              onClick={toggleAmountsHidden}
+              radius="xl"
+              variant="default"
+            >
+              {amountsHidden ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+            </ActionIcon>
           </Group>
-          <Text fw={900} size="3rem">{MOCK_BALANCE_MOB.toFixed(2)} MOB</Text>
-          <Text c="dimmed">{MOCK_BALANCE_USD} USD estimate</Text>
+          <Text fw={900} size="3rem">{balanceText}</Text>
           <Text c="dimmed" size="sm">
-            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Stored vault detected with auto-lock timer running.' : 'Save a passphrase to enable device unlock.'}
+            {remainingMinutes !== null ? `Session valid for ${remainingMinutes}m.` : 'Session active in memory.'} {storedVault ? 'Encrypted wallet is stored on this device.' : 'Wallet is currently memory-only until PIN lock is saved.'}
           </Text>
-        </Stack>
-      </Paper>
-
-      <WarningBanner items={score.pending} />
-
-      <Grid>
-        <Grid.Col span={12}>
-          <Paper h="100%" p="lg" radius="xl" withBorder>
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Text fw={700}>Network status</Text>
-                <Badge color="teal" leftSection={<IconCircleCheckFilled size={12} />} radius="xl" variant="light">ACTIVE</Badge>
-              </Group>
-              <Text>Connected via Fog Proxy</Text>
-              <Text c="dimmed" size="sm">The routed shell is in place; live balance sync is the next phase.</Text>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-
-      <SecurityScoreCard />
-
-      <Paper p="lg" radius="xl" withBorder>
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Text fw={700}>Wallet Security</Text>
-            <ThemeIcon color="cyan" radius="xl" variant="light"><IconShieldCheck size={18} /></ThemeIcon>
-          </Group>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void saveVault(newPassphrase)
-            }}
-          >
-            <Stack gap="md">
-              <PasswordInput
-                autoComplete="new-password"
-                name="updated-device-passphrase"
-                onChange={(event) => setNewPassphrase(event.currentTarget.value)}
-                placeholder="Update local passphrase"
-                radius="xl"
-                value={newPassphrase}
-              />
-              <Group grow>
-                <Button onClick={() => navigate('/profile/recovery-phrase')} radius="xl" type="button" variant="default">Recovery Phrase</Button>
-                <Button disabled={!newPassphrase.trim() || working} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" type="submit" variant="gradient">
-                  Secure Vault
-                </Button>
-              </Group>
-            </Stack>
-          </form>
-          {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}
         </Stack>
       </Paper>
 
@@ -122,23 +85,26 @@ export function VaultScreen() {
       <Paper p="lg" radius="xl" withBorder>
         <Stack gap="md">
           <Group justify="space-between">
-            <Text fw={700}>Privacy Log</Text>
+            <Text fw={700}>Transaction History</Text>
             <ThemeIcon color="teal" radius="xl" variant="light"><IconWaveSquare size={18} /></ThemeIcon>
           </Group>
-          {activity.map((entry) => (
+          {visibleActivity.map((entry) => (
             <Group justify="space-between" key={`${entry.title}-${entry.when}`}>
               <Stack gap={2}>
                 <Text fw={600}>{entry.title}</Text>
                 <Text c="dimmed" size="sm">{entry.when}</Text>
               </Stack>
               <Stack align="flex-end" gap={2}>
-                <Text fw={700}>{entry.amount}</Text>
+                <Text fw={700}>{formatActivityAmount(entry.amount)}</Text>
                 <Badge color="gray" radius="xl" variant="light">{entry.badge}</Badge>
               </Stack>
             </Group>
           ))}
+          <Button disabled radius="xl" variant="subtle">Show all (coming soon)</Button>
         </Stack>
       </Paper>
+
+      
     </Stack>
   )
 }

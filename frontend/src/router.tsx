@@ -19,6 +19,7 @@ import { ReceiveScreen } from './screens/Transfer/ReceiveScreen'
 import { AppErrorScreen } from './screens/Error/AppErrorScreen'
 import { UnlockScreen } from './screens/Unlock/UnlockScreen'
 import { VaultScreen } from './screens/Vault/VaultScreen'
+import { SettingsScreen } from './screens/Settings/SettingsScreen'
 import { WelcomeScreen } from './screens/Welcome/WelcomeScreen'
 
 export const router = createBrowserRouter([
@@ -36,7 +37,7 @@ export const router = createBrowserRouter([
           { path: 'onboard/create', element: <CreateWalletScreen /> },
           { path: 'onboard/import', element: <ImportWalletScreen /> },
           { path: 'onboard/backup', element: <BackupMnemonicScreen /> },
-          { path: 'onboard/passphrase', element: <CreatePassphraseScreen /> },
+          { path: 'onboard/pin', element: <CreatePassphraseScreen /> },
           { path: 'onboard/biometrics', element: <EnableBiometricsScreen /> },
           { path: 'onboard/complete', element: <OnboardCompleteScreen /> },
         ],
@@ -44,10 +45,11 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedAppOutlet />,
         children: [
-          { path: 'vault', element: <VaultScreen /> },
+          { path: 'wallet', element: <VaultScreen /> },
           { path: 'transfer', element: <TransferScreen /> },
           { path: 'transfer/receive', element: <ReceiveScreen /> },
           { path: 'profile', element: <ProfileScreen /> },
+          { path: 'settings', element: <SettingsScreen /> },
           { path: 'profile/recovery-phrase', element: <RecoveryPhraseScreen /> },
           { path: 'profile/network', element: <NetworkSettingsScreen /> },
         ],

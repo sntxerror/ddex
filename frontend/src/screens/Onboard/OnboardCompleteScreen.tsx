@@ -7,22 +7,22 @@ import { useOnboardingStore } from '../../stores/onboardingStore'
 export function OnboardCompleteScreen() {
   const navigate = useNavigate()
   const score = useSecurityScore()
-  const { biometricsEnabled, completeWorkflow, mnemonicBackedUp, passphraseCreated } = useOnboardingStore()
+  const completeWorkflow = useOnboardingStore((state) => state.completeWorkflow)
 
   return (
     <Stack gap="lg">
       <Stack gap="xs">
         <Badge color="teal" radius="xl" variant="light">Onboarding complete</Badge>
-        <Text fw={800} size="xl">Your vault is ready</Text>
-        <Text c="dimmed">You can enter the vault now, and any skipped step will continue showing up as a reminder instead of vanishing into the abyss.</Text>
+        <Text fw={800} size="xl">Your wallet is ready</Text>
+        <Text c="dimmed">You can enter now. Any skipped security step remains visible as a reminder until completed.</Text>
       </Stack>
 
       <SecurityScoreCard />
 
       <List c="dimmed" spacing={6} size="sm">
-        <List.Item>{mnemonicBackedUp ? 'Recovery phrase backed up' : 'Recovery phrase backup still pending'}</List.Item>
-        <List.Item>{passphraseCreated ? 'Local passphrase configured' : 'Local passphrase skipped for now'}</List.Item>
-        <List.Item>{biometricsEnabled ? 'Biometrics enabled placeholder accepted' : 'Biometrics left disabled'}</List.Item>
+        <List.Item>Recovery phrase {score.pending.includes('Back up your recovery phrase') ? 'backup still pending' : 'backed up'}</List.Item>
+        <List.Item>PIN lock {score.pending.includes('Set a local PIN lock') ? 'setup needed' : 'configured'}</List.Item>
+        <List.Item>Biometrics {score.pending.includes('Enable biometric unlock') ? 'setup needed' : 'enabled'}</List.Item>
       </List>
 
       <Button

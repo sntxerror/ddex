@@ -8,7 +8,7 @@ import { useAppBootstrap } from './hooks/useAppBootstrap'
 import { AppLayout } from './layouts/AppLayout'
 import { OnboardLayout } from './layouts/OnboardLayout'
 import { useKeystoreStore } from './stores/keystoreStore'
-import { getNextOnboardingPath, useOnboardingStore } from './stores/onboardingStore'
+import { getNextIncompleteOnboardingPath, getNextOnboardingPath, useOnboardingStore } from './stores/onboardingStore'
 import { useWalletStore } from './stores/walletStore'
 
 function LoadingScreen() {
@@ -43,7 +43,7 @@ export function RootRedirect() {
       return <Navigate replace to={nextOnboardingPath} />
     }
 
-    return <Navigate replace to="/vault" />
+    return <Navigate replace to="/wallet" />
   }
 
   if (storedVault) {
@@ -86,6 +86,7 @@ export function PublicOutlet() {
   const status = useKeystoreStore((state) => state.status)
   const storedVault = useKeystoreStore((state) => state.storedVault)
   const nextOnboardingPath = useOnboardingStore(getNextOnboardingPath)
+  const nextIncompleteOnboardingPath = useOnboardingStore(getNextIncompleteOnboardingPath)
 
   if (status === 'checking') {
     return <LoadingScreen />
@@ -100,7 +101,11 @@ export function PublicOutlet() {
       return <OnboardLayout />
     }
 
-    return <Navigate replace to="/vault" />
+    if (nextIncompleteOnboardingPath && location.pathname === nextIncompleteOnboardingPath) {
+      return <OnboardLayout />
+    }
+
+    return <Navigate replace to="/wallet" />
   }
 
   if (storedVault && location.pathname !== '/unlock') {

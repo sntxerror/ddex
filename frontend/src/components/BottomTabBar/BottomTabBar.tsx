@@ -1,12 +1,13 @@
 import { Text } from '@mantine/core'
-import { IconArrowsExchange, IconShieldLock, IconUserCircle } from '@tabler/icons-react'
+import { IconArrowsExchange, IconSettings2, IconShieldLock, IconUserCircle } from '@tabler/icons-react'
 import { NavLink } from 'react-router'
 import styles from './BottomTabBar.module.css'
 
 const tabs = [
-  { href: '/vault', icon: IconShieldLock, label: 'Vault' },
+  { href: '/wallet', icon: IconShieldLock, label: 'Wallet' },
   { href: '/transfer', icon: IconArrowsExchange, label: 'Transfer' },
   { href: '/profile', icon: IconUserCircle, label: 'Profile' },
+  { href: '/settings', icon: IconSettings2, label: 'Settings' },
 ] as const
 
 export function BottomTabBar() {

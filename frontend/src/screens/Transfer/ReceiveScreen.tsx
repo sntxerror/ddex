@@ -25,7 +25,7 @@ export function ReceiveScreen() {
       </Stack>
 
       <Paper p="xl" radius="xl" ta="center" withBorder>
-        <QRCodeSVG bgColor="transparent" fgColor="#f1f5f9" includeMargin size={220} value={address || 'ddex'} />
+        <QRCodeSVG bgColor="transparent" fgColor="currentColor" includeMargin size={220} style={{ color: 'var(--ddex-text-primary)' }} value={address || 'ddex'} />
       </Paper>
 
       <Code block>{address}</Code>

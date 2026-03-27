@@ -1,13 +1,15 @@
-import { ActionIcon, Alert, Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core'
 import { IconCopy, IconQrcode } from '@tabler/icons-react'
 import { MOCK_BALANCE_MOB } from '../../config'
 import { useTransferStore } from '../../stores/transferStore'
+import { useUiStore } from '../../stores/uiStore'
 
 export function TransferScreen() {
   const amount = useTransferStore((state) => state.amount)
   const recipient = useTransferStore((state) => state.recipient)
   const setAmount = useTransferStore((state) => state.setAmount)
   const setRecipient = useTransferStore((state) => state.setRecipient)
+  const amountsHidden = useUiStore((state) => state.amountsHidden)
 
   const pasteFromClipboard = async () => {
     try {
@@ -29,10 +31,10 @@ export function TransferScreen() {
         <Stack gap="sm">
           <Group justify="space-between">
             <Text fw={700}>Amount to Send</Text>
-            <Button onClick={() => setAmount(MOCK_BALANCE_MOB.toFixed(2))} radius="xl" size="xs" variant="subtle">MAX AMOUNT</Button>
+            <Button onClick={() => setAmount(MOCK_BALANCE_MOB.toFixed(2))} radius="xl" size="xs" variant="subtle">ALL</Button>
           </Group>
           <TextInput onChange={(event) => setAmount(event.currentTarget.value)} placeholder="0.00 MOB" radius="xl" value={amount} />
-          <Text c="dimmed" size="sm">Available: {MOCK_BALANCE_MOB.toFixed(2)} MOB</Text>
+          <Text c="dimmed" size="sm">Available: {amountsHidden ? '***.** MOB' : `${MOCK_BALANCE_MOB.toFixed(2)} MOB`}</Text>
         </Stack>
       </Paper>
 
@@ -57,10 +59,6 @@ export function TransferScreen() {
           />
         </Stack>
       </Paper>
-
-      <Alert color="cyan" radius="xl" variant="light">
-        Privacy Enabled — this transaction flow is being shaped for end-to-end encrypted transfers, with outbound submission to come in a later phase.
-      </Alert>
 
       <Button disabled gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" size="lg" variant="gradient">
         Send MOB →

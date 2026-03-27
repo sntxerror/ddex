@@ -21,15 +21,15 @@ export function UnlockScreen() {
   const handleUnlock = async () => {
     const ok = await unlockVault(passphrase, TESTNET_FOG_REPORT_URL)
     if (ok) {
-      navigate('/vault')
+      navigate('/wallet')
     }
   }
 
   return (
     <Stack gap="lg">
       <Stack gap="xs">
-        <Text fw={800} size="xl">Unlock your vault</Text>
-        <Text c="dimmed">This device already has an encrypted wallet. Enter the local passphrase to derive the address back into memory.</Text>
+        <Text fw={800} size="xl">Unlock your wallet</Text>
+        <Text c="dimmed">This device already has an encrypted wallet. Enter your PIN code to derive the address back into memory.</Text>
       </Stack>
 
       <form
@@ -41,10 +41,11 @@ export function UnlockScreen() {
         <Stack gap="md">
           <PasswordInput
             autoComplete="current-password"
-            label="Device passphrase"
-            name="device-passphrase"
+            inputMode="numeric"
+            label="PIN code"
+            name="device-pin"
             onChange={(event) => setPassphrase(event.currentTarget.value)}
-            placeholder="Enter local passphrase"
+            placeholder="Enter PIN code"
             radius="xl"
             value={passphrase}
           />
@@ -56,7 +57,7 @@ export function UnlockScreen() {
       </form>
 
       <Alert color="cyan" icon={<IconFingerprint size={18} />} radius="xl" variant="light">
-        Biometric unlock is reserved for a later pass. Right now it is all passphrase, all the time.
+        Biometric unlock is reserved for a later pass. Right now it is PIN unlock first.
       </Alert>
 
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}

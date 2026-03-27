@@ -59,13 +59,70 @@ export function getNextOnboardingPath(state: OnboardingPersistedState): string |
   }
 
   if (!state.passphraseStepReviewed) {
-    return '/onboard/passphrase'
+    return '/onboard/pin'
   }
 
   if (!state.biometricsStepReviewed) {
     return '/onboard/biometrics'
   }
 
+  return '/onboard/complete'
+}
+
+export function getNextIncompleteOnboardingPath(state: OnboardingPersistedState): string | null {
+  if (!state.walletPrepared) {
+    return null
+  }
+
+  if (!state.mnemonicBackedUp) {
+    return '/onboard/backup'
+  }
+
+  if (!state.passphraseCreated) {
+    return '/onboard/pin'
+  }
+
+  if (!state.biometricsEnabled) {
+    return '/onboard/biometrics'
+  }
+
+  return null
+}
+
+/**
+ * Determines the next step to show based on the current screen and onboarding state.
+ * Skips completed steps to show only incomplete ones.
+ * Used when navigating from within onboarding (skip/complete buttons).
+ */
+export function getNextIncompleteStepFromCurrent(
+  currentPath: string,
+  state: OnboardingPersistedState,
+): string {
+  // After backup, check if PIN is needed
+  if (currentPath === '/onboard/backup') {
+    if (!state.passphraseCreated) {
+      return '/onboard/pin'
+    }
+    if (!state.biometricsEnabled) {
+      return '/onboard/biometrics'
+    }
+    return '/onboard/complete'
+  }
+
+  // After PIN, check if biometrics is needed
+  if (currentPath === '/onboard/pin') {
+    if (!state.biometricsEnabled) {
+      return '/onboard/biometrics'
+    }
+    return '/onboard/complete'
+  }
+
+  // After biometrics, go to complete
+  if (currentPath === '/onboard/biometrics') {
+    return '/onboard/complete'
+  }
+
+  // Default: go to complete
   return '/onboard/complete'
 }
 

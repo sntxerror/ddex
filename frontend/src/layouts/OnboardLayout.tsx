@@ -12,7 +12,7 @@ const stepMap = new Map<string, { readonly index: number; readonly label: string
   ['/onboard/create', { index: 1, label: 'Create wallet' }],
   ['/onboard/import', { index: 1, label: 'Import wallet' }],
   ['/onboard/backup', { index: 2, label: 'Backup phrase' }],
-  ['/onboard/passphrase', { index: 3, label: 'Local passphrase' }],
+  ['/onboard/pin', { index: 3, label: 'PIN lock' }],
   ['/onboard/biometrics', { index: 4, label: 'Biometrics' }],
   ['/onboard/complete', { index: 5, label: 'Complete' }],
 ])
@@ -36,7 +36,6 @@ export function OnboardLayout() {
           <Group align="flex-start" justify="space-between" wrap="nowrap">
             <Stack gap="xs">
               <Text fw={800} size="xl">{step.label}</Text>
-              <Text c="dimmed" size="sm">A guided onboarding flow that offers each security step one-by-one, with a clear explanation before you continue, skip, or close it.</Text>
               <Progress color="cyan" radius="xl" size="sm" value={progress} />
             </Stack>
 

@@ -18,7 +18,7 @@ export function useSecurityScore(): SecurityScoreResult {
     if (passphraseCreated) {
       achieved += 3
     } else if (walletPrepared) {
-      pending.push('Set a local device passphrase')
+      pending.push('Set a local PIN lock')
     }
 
     if (biometricsEnabled) {

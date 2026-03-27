@@ -1,8 +1,27 @@
 .card {
   height: 100%;
-  background: linear-gradient(180deg, rgb(17 24 39 / 0.96), rgb(15 23 42 / 0.92));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ddex-bg-card) 96%, transparent),
+    color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent)
+  );
   border: 1px solid var(--ddex-border-strong);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.02);
+  box-shadow: var(--ddex-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 6%, transparent);
+}
+
+.cardInteractive {
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.cardInteractive:hover,
+.cardInteractive:focus-visible {
+  border-color: color-mix(in srgb, var(--ddex-accent-primary) 36%, transparent);
+  box-shadow:
+    0 14px 28px color-mix(in srgb, var(--ddex-accent-primary) 18%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--ddex-text-primary) 8%, transparent);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .score {

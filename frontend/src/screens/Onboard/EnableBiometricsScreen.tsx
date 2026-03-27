@@ -19,8 +19,7 @@ export function EnableBiometricsScreen() {
     <Stack gap="lg">
       <Stack gap="xs">
         <Text fw={800} size="xl">Enable biometric unlock</Text>
-        <Text c="dimmed">UI-only for now, but this step reserves the future flow for Face ID / Touch ID / platform biometrics.</Text>
-        <Text c="dimmed" size="sm">You can skip this for now and still finish onboarding. We just want to offer every hardening step in sequence.</Text>
+        <Text c="dimmed">UI-only for now. This step reserves the future flow for Face ID / Touch ID / platform biometrics.</Text>
       </Stack>
 
       <Paper p="lg" radius="xl" withBorder>

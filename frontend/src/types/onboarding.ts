@@ -1,4 +1,4 @@
-export type OnboardingStep = 'welcome' | 'create' | 'import' | 'backup' | 'passphrase' | 'biometrics' | 'complete'
+export type OnboardingStep = 'welcome' | 'create' | 'import' | 'backup' | 'pin' | 'biometrics' | 'complete'
 
 export interface OnboardingProgress {
   readonly biometricsEnabled: boolean

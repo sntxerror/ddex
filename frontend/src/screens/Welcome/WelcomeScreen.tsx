@@ -1,4 +1,4 @@
-import { Button, Divider, Group, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Button, Group, SimpleGrid, Stack, Text } from '@mantine/core'
 import { IconBolt, IconFingerprint } from '@tabler/icons-react'
 import { useNavigate } from 'react-router'
 import { FeatureCard } from '../../components/FeatureCard/FeatureCard'
@@ -11,22 +11,16 @@ export function WelcomeScreen() {
       <Stack gap="sm">
         <Text c="cyan.3" fw={700} size="sm" tt="uppercase">Encrypted by MobileCoin protocol</Text>
         <Text fw={900} lh={1.05} size="2.5rem">Private payments. Decentralized exchange.</Text>
-        <Text c="dimmed" maw={560} size="md">
-          Rebuilt as a mobile-first wallet: real routes, local encrypted storage, and a clearer path from welcome screen to everyday vault use.
-        </Text>
-        <Text c="dimmed" maw={560} size="sm">
-          After create or import, we guide users through backup, passphrase, and biometric steps before handing off to the profile flow.
-        </Text>
       </Stack>
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <FeatureCard
-          description="Recovery phrase generation and account derivation stay inside the browser — no backend peeking over your shoulder."
+          description="Recovery phrase generation and account derivation stay inside your browser."
           icon={IconFingerprint}
           title="Zero-Knowledge"
         />
         <FeatureCard
-          description="A shell designed for fast send/receive flows and future fog sync, not a one-page demo that got too comfortable."
+          description="A shell designed for fast send/receive flows and  fog sync."
           icon={IconBolt}
           title="Sub-Second Finality"
         />
@@ -41,7 +35,6 @@ export function WelcomeScreen() {
         </Button>
       </Stack>
 
-      <Divider color="dark.4" />
       <Group justify="space-between">
         <Text c="dimmed" size="sm">Vault will be unlocked once your wallet is ready.</Text>
       </Group>

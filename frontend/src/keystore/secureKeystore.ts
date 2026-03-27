@@ -160,8 +160,8 @@ export async function saveWalletKeystore(mnemonic: string, passphrase: string): 
     throw new Error('No mnemonic is loaded to save.')
   }
 
-  if (normalizedPassphrase.length < 8) {
-    throw new Error('Use at least 8 characters for the device vault passphrase.')
+  if (!/^\d{4,8}$/.test(normalizedPassphrase)) {
+    throw new Error('Use a 4 to 8 digit PIN code for the device vault lock.')
   }
 
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES))
@@ -197,7 +197,7 @@ export async function unlockStoredWalletMnemonic(passphrase: string): Promise<st
 
   const normalizedPassphrase = passphrase.trim()
   if (!normalizedPassphrase) {
-    throw new Error('Enter the vault passphrase to unlock the stored wallet.')
+    throw new Error('Enter your PIN code to unlock the stored wallet.')
   }
 
   const record = await getStoredRecord()
@@ -218,7 +218,7 @@ export async function unlockStoredWalletMnemonic(passphrase: string): Promise<st
     )
     return new TextDecoder().decode(plaintext)
   } catch {
-    throw new Error('Vault unlock failed. The passphrase was incorrect or the stored data was modified.')
+    throw new Error('Vault unlock failed. The PIN code was incorrect or the stored data was modified.')
   }
 }
 

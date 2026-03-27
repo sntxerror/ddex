@@ -38,8 +38,8 @@ function normalizeMnemonic(value: string): string {
   return value.trim().replace(/\s+/g, ' ')
 }
 
-export function isValidWalletPassphrase(value: string): boolean {
-  return /^[A-Za-z0-9]{8,}$/.test(value.trim())
+export function isValidWalletPin(value: string): boolean {
+  return /^\d{4,8}$/.test(value.trim())
 }
 
 export const useWalletStore = create<WalletState>((set, get) => ({

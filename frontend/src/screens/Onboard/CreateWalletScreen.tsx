@@ -34,14 +34,14 @@ export function CreateWalletScreen() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Badge color="cyan" leftSection={<IconShieldCheck size={12} />} radius="xl" variant="light">Security score: 2/10</Badge>
+        <Badge color="cyan" leftSection={<IconShieldCheck size={14} />} radius="xl" variant="light">2/10</Badge>
         {isWorking ? <Loader color="cyan" size="sm" /> : null}
       </Group>
 
       <Stack gap="xs">
         <Text fw={800} size="xl">Wallet created locally</Text>
         <Text c="dimmed">We generated a fresh recovery phrase and derived your account key entirely in-browser.</Text>
-        <Text c="dimmed" size="sm">Next up: confirm you backed up the phrase, then decide whether to add a local passphrase and biometrics for extra protection.</Text>
+        <Text c="dimmed" size="sm">Next up: confirm your recovery backup, then set a PIN lock and biometrics for stronger local protection.</Text>
       </Stack>
 
       <Paper p="lg" radius="xl" withBorder>

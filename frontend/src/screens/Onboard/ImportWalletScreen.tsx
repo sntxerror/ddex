@@ -37,7 +37,7 @@ export function ImportWalletScreen() {
       <Stack gap="xs">
         <Text fw={800} size="xl">Recover an existing wallet</Text>
         <Text c="dimmed">Paste your 24-word phrase below. Validation happens locally before anything is derived.</Text>
-        <Text c="dimmed" size="sm">After import, we’ll still walk you through backup confirmation, passphrase protection, and biometrics one step at a time.</Text>
+        <Text c="dimmed" size="sm">After import, we’ll still walk you through backup confirmation, PIN lock setup, and biometrics one step at a time.</Text>
       </Stack>
 
       <Textarea
