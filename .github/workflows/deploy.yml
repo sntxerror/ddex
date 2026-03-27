@@ -11,6 +11,10 @@ on:
         description: 'Branch to deploy'
         default: 'dev'
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
