@@ -22,11 +22,6 @@ export function TransferScreen() {
 
   return (
     <Stack gap="lg">
-      <Stack gap="xs">
-        <Text c="cyan.3" fw={700} size="sm" tt="uppercase">Transaction</Text>
-        <Text fw={800} size="xl">Transfer Assets</Text>
-      </Stack>
-
       <Paper p="lg" radius="xl" withBorder>
         <Stack gap="sm">
           <Group justify="space-between">

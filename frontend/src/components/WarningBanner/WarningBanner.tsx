@@ -1,4 +1,4 @@
-import { Alert, Button, List, Stack, Text } from '@mantine/core'
+import { Alert, Button, Stack, Text } from '@mantine/core'
 import { IconAlertTriangle } from '@tabler/icons-react'
 
 interface WarningBannerProps {
