@@ -37,6 +37,7 @@ export function ImportWalletScreen() {
       <Stack gap="xs">
         <Text fw={800} size="xl">Recover an existing wallet</Text>
         <Text c="dimmed">Paste your 24-word phrase below. Validation happens locally before anything is derived.</Text>
+        <Text c="dimmed" size="sm">After import, we’ll still walk you through backup confirmation, passphrase protection, and biometrics one step at a time.</Text>
       </Stack>
 
       <Textarea
@@ -61,7 +62,7 @@ export function ImportWalletScreen() {
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}
 
       <Group grow>
-        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Back</Button>
+        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel import</Button>
         <Button disabled={!isValid || isWorking} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => void handleSubmit()} radius="xl" variant="gradient">
           Import Wallet
         </Button>

@@ -1,11 +1,12 @@
 .shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 1.25rem 1rem 2rem;
   background:
     radial-gradient(circle at top, rgb(34 211 238 / 0.18), transparent 32%),
     radial-gradient(circle at bottom right, rgb(16 185 129 / 0.12), transparent 26%),
     linear-gradient(180deg, rgb(15 23 42 / 0.3), transparent 40%),
     var(--ddex-bg-deep);
+  color: var(--ddex-text-primary);
 }
 
 .frame {
@@ -14,7 +15,7 @@
 }
 
 .panel {
-  background: linear-gradient(180deg, rgb(17 24 39 / 0.95), rgb(15 23 42 / 0.92));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ddex-bg-card) 96%, transparent), color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent));
   border: 1px solid var(--ddex-border-strong);
-  box-shadow: 0 24px 60px rgb(2 6 23 / 0.45);
+  box-shadow: var(--ddex-panel-shadow);
 }

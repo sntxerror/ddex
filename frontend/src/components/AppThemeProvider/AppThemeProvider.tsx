@@ -79,7 +79,6 @@ export function AppThemeProvider({ children }: AppThemeProviderProps) {
     <MantineProvider
       colorSchemeManager={colorSchemeManager}
       defaultColorScheme="dark"
-      forceColorScheme="dark"
       theme={theme}
     >
       <div className={styles.viewport}>{children}</div>

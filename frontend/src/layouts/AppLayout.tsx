@@ -1,5 +1,5 @@
-import { AppShell, Badge, Group, Stack, Text } from '@mantine/core'
-import { IconLockOpen2, IconShieldCheckFilled, IconWifi } from '@tabler/icons-react'
+import { ActionIcon, AppShell, Badge, Group, Stack, Text, useMantineColorScheme } from '@mantine/core'
+import { IconLockOpen2, IconMoonStars, IconShieldCheckFilled, IconSunHigh, IconWifi } from '@tabler/icons-react'
 import { Outlet } from 'react-router'
 import { BottomTabBar } from '../components/BottomTabBar/BottomTabBar'
 import { useNetworkStore } from '../stores/networkStore'
@@ -7,9 +7,11 @@ import { useKeystoreStore } from '../stores/keystoreStore'
 import styles from './AppLayout.module.css'
 
 export function AppLayout() {
+  const { colorScheme, setColorScheme } = useMantineColorScheme()
   const network = useNetworkStore((state) => state.network)
   const syncStatus = useNetworkStore((state) => state.syncStatus)
   const storedVault = useKeystoreStore((state) => state.storedVault)
+  const isDark = colorScheme === 'dark'
 
   return (
     <AppShell className={styles.shell} footer={{ height: 84 }} header={{ height: 68 }} padding={0}>
@@ -24,6 +26,15 @@ export function AppLayout() {
           </Stack>
 
           <Group gap="xs">
+            <ActionIcon
+              aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+              onClick={() => setColorScheme(isDark ? 'light' : 'dark')}
+              radius="xl"
+              size="lg"
+              variant="default"
+            >
+              {isDark ? <IconSunHigh size={18} /> : <IconMoonStars size={18} />}
+            </ActionIcon>
             <Badge color={syncStatus === 'active' ? 'teal' : 'gray'} leftSection={<IconWifi size={12} />} radius="xl" variant="light">
               {network}
             </Badge>

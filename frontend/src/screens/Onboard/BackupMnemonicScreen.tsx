@@ -22,6 +22,7 @@ export function BackupMnemonicScreen() {
       <Stack gap="xs">
         <Text fw={800} size="xl">Back up your recovery phrase</Text>
         <Text c="dimmed">If you lose this phrase, you lose access to your wallet and any assets tied to it. Dramatic, but accurate.</Text>
+        <Text c="dimmed" size="sm">We recommend finishing this now. If you skip, the next screen will still offer passphrase protection before biometrics.</Text>
       </Stack>
 
       <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
@@ -46,7 +47,7 @@ export function BackupMnemonicScreen() {
           radius="xl"
           variant="default"
         >
-          Skip for now
+          Skip this step
         </Button>
         <Button
           disabled={!acknowledged}

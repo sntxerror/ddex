@@ -38,6 +38,7 @@ export function CreatePassphraseScreen() {
       <Stack gap="xs">
         <Text fw={800} size="xl">Create a local passphrase</Text>
         <Text c="dimmed">Use at least 8 letters or numbers. No special characters required — intentionally simple, not intentionally flimsy.</Text>
+        <Text c="dimmed" size="sm">This protects the vault stored on this device. If you skip it, we’ll still offer biometric setup next.</Text>
       </Stack>
 
       <form
@@ -87,7 +88,7 @@ export function CreatePassphraseScreen() {
               type="button"
               variant="default"
             >
-              Skip
+              Skip this step
             </Button>
             <Button disabled={!isValid || !matches || working} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" type="submit" variant="gradient">
               Secure Vault

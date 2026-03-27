@@ -41,6 +41,7 @@ export function CreateWalletScreen() {
       <Stack gap="xs">
         <Text fw={800} size="xl">Wallet created locally</Text>
         <Text c="dimmed">We generated a fresh recovery phrase and derived your account key entirely in-browser.</Text>
+        <Text c="dimmed" size="sm">Next up: confirm you backed up the phrase, then decide whether to add a local passphrase and biometrics for extra protection.</Text>
       </Stack>
 
       <Paper p="lg" radius="xl" withBorder>
@@ -63,7 +64,7 @@ export function CreateWalletScreen() {
       {feedback ? <Text c="dimmed" size="sm">{feedback}</Text> : null}
 
       <Group grow>
-        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Start over</Button>
+        <Button onClick={() => navigate('/welcome')} radius="xl" variant="default">Cancel setup</Button>
         <Button disabled={!mnemonic} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} onClick={() => navigate('/onboard/backup')} radius="xl" variant="gradient">
           Continue to Backup
         </Button>

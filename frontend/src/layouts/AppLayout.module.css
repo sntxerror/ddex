@@ -4,12 +4,13 @@
     radial-gradient(circle at top, rgb(34 211 238 / 0.16), transparent 28%),
     radial-gradient(circle at 80% 20%, rgb(16 185 129 / 0.12), transparent 24%),
     var(--ddex-bg-deep);
+  color: var(--ddex-text-primary);
 }
 
 .header {
   backdrop-filter: blur(18px);
-  background: rgb(10 14 26 / 0.82);
-  border-bottom: 1px solid rgb(148 163 184 / 0.12);
+  background: var(--ddex-surface-strong);
+  border-bottom: 1px solid var(--ddex-header-border);
 }
 
 .main {
@@ -19,8 +20,8 @@
 
 .footer {
   backdrop-filter: blur(18px);
-  background: rgb(10 14 26 / 0.92);
-  border-top: 1px solid rgb(148 163 184 / 0.12);
+  background: var(--ddex-surface-strong);
+  border-top: 1px solid var(--ddex-header-border);
 }
 
 .frame {

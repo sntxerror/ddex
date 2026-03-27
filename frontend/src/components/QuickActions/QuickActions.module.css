@@ -6,6 +6,6 @@
 
 .action {
   min-height: 5.5rem;
-  background: linear-gradient(180deg, rgb(30 41 59 / 0.88), rgb(15 23 42 / 0.88));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ddex-bg-card-elevated) 92%, transparent), color-mix(in srgb, var(--ddex-bg-card) 92%, transparent));
   border: 1px solid var(--ddex-border-strong);
 }
