@@ -1,0 +1,149 @@
+name: Deploy
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@wasm-pack
+
+      - name: Build WASM module
+        run: pnpm build:wasm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Build frontend
+        run: pnpm build
+        env:
+          VITE_MC_NETWORK: testnet
+          VITE_PROXY_URL: ""
+          VITE_TESTNET_FOG_REPORT_URL: "fog://fog.test.mobilecoin.com"
+          VITE_MAINNET_FOG_REPORT_URL: "fog://fog-rpt-prd.namda.net"
+          VITE_TESTNET_FOG_AUTHORITY_SPKI: ""
+          VITE_MAINNET_FOG_AUTHORITY_SPKI: "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxaNIOgcoQtq0S64dFVha6rn0hDv/ec+W0cKRdFKygiyp5xuWdW3YKVAkK1PPgSDD2dwmMN/1xcGWrPMqezx1h1xCzbr7HL7XvLyFyoiMB2JYd7aoIuGIbHpCOlpm8ulVnkOX7BNuo0Hi2F0AAHyTPwmtVMt6RZmae1Z/Pl2I06+GgWN6vufV7jcjiLT3yQPsn1kVSj+DYCf3zq+1sCknKIvoRPMdQh9Vi3I/fqNXz00DSB7lt3v5/FQ6sPbjljqdGD/qUl4xKRW+EoDLlAUfzahomQOLXVAlxcws3Ua5cZUhaJi6U5jVfw5Ng2N7FwX/D5oX82r9o3xcFqhWpGnfSxSrAudv1X7WskXomKhUzMl/0exWpcJbdrQWB/qshzi9Et7HEDNY+xEDiwGiikj5f0Lb+QA4mBMlAhY/cmWec8NKi1gf3Dmubh6c3sNteb9OpZ/irA3AfE8jI37K1rvezDI8kbNtmYgvyhfz0lZzRT2WAfffiTe565rJglvKa8rh8eszKk2HC9DyxUb/TcyL/OjGhe2fDYO2t6brAXCqjPZAEkVJq3I30NmnPdE19SQeP7wuaUIb3U7MGxoZC/NuJoxZh8svvZ8cyqVjG+dOQ6/UfrFY0jiswT8AsrfqBis/ZV5EFukZr+zbPtg2MH0H3tSJ14BCLduvc7FY6lAZmOcCAwEAAQ=="
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            proxy/
+            deploy/
+            scripts/deploy.sh
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist/
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ vars.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Prepare server directories
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          ssh -i $SSH_KEY ubuntu@$HOST \
+            'sudo mkdir -p /opt/ddex/frontend /opt/ddex/proxy && sudo chown -R ubuntu:ubuntu /opt/ddex'
+
+      - name: Upload frontend build
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          tar -czf /tmp/frontend.tar.gz -C frontend-dist .
+          scp -i $SSH_KEY /tmp/frontend.tar.gz ubuntu@$HOST:/tmp/frontend.tar.gz
+          ssh -i $SSH_KEY ubuntu@$HOST \
+            'rm -rf /opt/ddex/frontend/* && tar -xzf /tmp/frontend.tar.gz -C /opt/ddex/frontend && rm /tmp/frontend.tar.gz'
+
+      - name: Upload proxy config
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          tar -czf /tmp/proxy.tar.gz -C proxy Dockerfile envoy.yaml docker-compose.prod.yml .env.prod
+          scp -i $SSH_KEY /tmp/proxy.tar.gz ubuntu@$HOST:/tmp/proxy.tar.gz
+          ssh -i $SSH_KEY ubuntu@$HOST \
+            'tar -xzf /tmp/proxy.tar.gz -C /opt/ddex/proxy && rm /tmp/proxy.tar.gz'
+
+      - name: Upload nginx config
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          scp -i $SSH_KEY deploy/nginx/privatesecure.org ubuntu@$HOST:/tmp/nginx-privatesecure.org
+          ssh -i $SSH_KEY ubuntu@$HOST \
+            'sudo cp /tmp/nginx-privatesecure.org /etc/nginx/sites-available/privatesecure.org && rm /tmp/nginx-privatesecure.org'
+
+      - name: Deploy
+        env:
+          SSH_KEY: ~/.ssh/deploy_key
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          ssh -i $SSH_KEY ubuntu@$HOST \
+            'bash -s' < scripts/deploy.sh
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://privatesecure.org/)
+          echo "HTTPS status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::warning::Site returned HTTP $STATUS"
+          fi
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
