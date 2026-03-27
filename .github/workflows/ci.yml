@@ -15,7 +15,6 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
           run_install: false
 
       - name: Setup Node.js
@@ -58,7 +57,6 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
           run_install: false
 
       - name: Setup Node.js
@@ -67,18 +65,6 @@ jobs:
           node-version: '22'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.88.0
-          targets: wasm32-unknown-unknown
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install wasm-pack
-        uses: taiki-e/install-action@wasm-pack
 
       - name: Download WASM artifact
         uses: actions/download-artifact@v4
@@ -95,5 +81,11 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Build
-        run: pnpm build
+      - name: Build frontend
+        run: pnpm --filter ./frontend build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
