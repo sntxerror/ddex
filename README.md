@@ -82,11 +82,21 @@ The Vite dev server starts at `http://localhost:5173`. The Envoy proxy at `:8080
 The wallet performs a full Fog sync loop on unlock:
 
 1. Noise NX handshake (attestation) with Fog View enclave
-2. Query for KexRng records → derive search keys in WASM
-3. Query Fog View with search keys → decrypt VersionedCryptoBox ciphertexts
-4. Decode TxOutRecord protobuf → scan for ownership and unmask amounts in WASM
+2. Query for KexRng records → separate active vs decommissioned RNGs
+3. Exponential search per RNG batch (keys double each round: 1→2→4→8…)
+4. For each Found result: decrypt VersionedCryptoBox → decode TxOutRecord → scan ownership in WASM
 5. Check key images against Fog Ledger for spent detection
-6. Sum unspent MOB TxOuts = displayed balance
+6. Progressive balance updates via callback after each round
+7. Active RNGs complete first (fast initial balance), then decommissioned (historical)
+
+Algorithm matches MobileCoin's reference `polling.rs` implementation.
+
+### Sending transactions
+
+1. Coin selection: largest-first from unspent TxOuts
+2. Ring construction: 11 random mixins per input from Fog Ledger
+3. WASM `buildTransaction`: MLSAG ring signatures + Bulletproof range proofs
+4. Submit via attested Consensus client (`proposeTx`)
 
 ## Development
 

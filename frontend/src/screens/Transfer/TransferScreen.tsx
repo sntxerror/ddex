@@ -37,11 +37,20 @@ function formatAmountOnBlur(value: string): string {
 export function TransferScreen() {
   const amount = useTransferStore((state) => state.amount)
   const recipient = useTransferStore((state) => state.recipient)
+  const status = useTransferStore((state) => state.status)
+  const buildPhase = useTransferStore((state) => state.buildPhase)
+  const buildDetail = useTransferStore((state) => state.buildDetail)
+  const error = useTransferStore((state) => state.error)
   const setAmount = useTransferStore((state) => state.setAmount)
   const setRecipient = useTransferStore((state) => state.setRecipient)
+  const send = useTransferStore((state) => state.send)
+  const reset = useTransferStore((state) => state.reset)
   const amountsHidden = useUiStore((state) => state.amountsHidden)
   const balancePicoMob = useBalanceStore((state) => state.balancePicoMob)
   const balanceDisplay = formatMob(balancePicoMob)
+
+  const isBusy = status === 'building' || status === 'submitting'
+  const canSubmit = status === 'ready' && !isBusy
 
   const pasteFromClipboard = async () => {
     try {
@@ -130,9 +139,34 @@ export function TransferScreen() {
           </div>
 
 
-          <Button className={styles.submitButton} disabled gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" size="lg" variant="gradient">
-            Send MOB →
+          <Button
+            className={styles.submitButton}
+            disabled={!canSubmit}
+            gradient={{ from: 'cyan', to: 'teal', deg: 135 }}
+            loading={isBusy}
+            onClick={() => void send()}
+            radius="xl"
+            size="lg"
+            variant="gradient"
+          >
+            {isBusy ? (buildDetail || buildPhase || 'Processing...') : 'Send MOB →'}
           </Button>
+
+          {status === 'failed' && error && (
+            <Text c="red" size="sm" ta="center">{error}</Text>
+          )}
+
+          {status === 'submitted' && (
+            <Stack gap="xs">
+              <Text c="teal" size="sm" ta="center">
+                Transaction submitted successfully!
+              </Text>
+              <Text c="dimmed" size="xs" ta="center">{buildDetail}</Text>
+              <Button onClick={reset} radius="xl" size="compact-sm" variant="subtle">
+                Send Another
+              </Button>
+            </Stack>
+          )}
         </Stack>
       </Paper>
     </Stack>

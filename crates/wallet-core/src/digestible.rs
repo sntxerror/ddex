@@ -13,7 +13,9 @@ const PRIMITIVE: &[u8] = b"prim";
 const SEQUENCE: &[u8] = b"seq";
 const AGGREGATE: &[u8] = b"agg";
 const AGGREGATE_END: &[u8] = b"agg-end";
+#[allow(dead_code)]
 const VARIANT: &[u8] = b"var";
+#[allow(dead_code)]
 const NONE: &[u8] = b"";
 
 /// Wrapper around Merlin transcript matching MobileCoin's DigestTranscript.
@@ -79,12 +81,14 @@ impl McDigest {
         self.append(b"len", &(len as u64).to_le_bytes());
     }
 
+    #[allow(dead_code)]
     pub fn var_header(&mut self, context: &'static [u8], type_name: &[u8], which: u32) {
         self.append(context, VARIANT);
         self.raw_append(b"name", type_name);
         self.append(b"which", &which.to_le_bytes());
     }
 
+    #[allow(dead_code)]
     pub fn none(&mut self, context: &'static [u8]) {
         self.append(context, NONE);
     }
@@ -151,6 +155,7 @@ fn parse_varint(data: &[u8]) -> Option<(u64, usize)> {
 /// A parsed protobuf field.
 pub(crate) struct ProtoField<'a> {
     pub field_number: u32,
+    #[allow(dead_code)]
     pub wire_type: u8,
     pub data: &'a [u8],       // For length-delimited (wire type 2)
     pub varint_value: u64,    // For varint (wire type 0)

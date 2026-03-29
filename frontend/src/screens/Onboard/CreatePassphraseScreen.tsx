@@ -77,7 +77,7 @@ export function CreatePassphraseScreen() {
               type="button"
               variant="default"
             >
-              Skip this step
+              Skip
             </Button>
             <Button className={actionStyles.actionButton} disabled={!isValid || !matches || working} gradient={{ from: 'cyan', to: 'teal', deg: 135 }} radius="xl" type="submit" variant="gradient">
               Set Pin

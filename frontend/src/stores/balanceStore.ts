@@ -44,7 +44,14 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     try {
       const result = await syncFogBalance(account, (progress) => {
         set({ syncPhase: progress.phase, syncDetail: progress.detail ?? '' })
-      }, signal)
+      }, signal, (partial) => {
+        // Progressive balance update — show running balance as scanning progresses
+        set({
+          balancePicoMob: partial.totalBalance,
+          highestProcessedBlock: partial.highestProcessedBlock,
+          ownedTxOuts: partial.ownedTxOuts,
+        })
+      })
 
       set({
         balancePicoMob: result.totalBalance,

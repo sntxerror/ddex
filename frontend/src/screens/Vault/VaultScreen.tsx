@@ -60,6 +60,22 @@ export function VaultScreen() {
     }
   }, [walletAccount])
 
+  // Periodic fog polling for live receive updates (~30s interval)
+  useEffect(() => {
+    if (!walletAccount) return
+
+    const interval = window.setInterval(() => {
+      const store = useBalanceStore.getState()
+      if (store.syncStatus !== 'syncing') {
+        store.sync(walletAccount).catch(() => {})
+      }
+    }, 30_000)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [walletAccount])
+
   const visibleActivity = activity.slice(0, 3)
   const balanceDisplay = formatMob(balancePicoMob)
   const balanceText = amountsHidden ? '***.** MOB' : `${balanceDisplay} MOB`
@@ -75,7 +91,7 @@ export function VaultScreen() {
     ? `${balanceSyncPhase}…`
     : balanceSyncStatus === 'error'
       ? `Sync failed: ${balanceSyncError}`
-      : 'Re-sync with Fog'
+      : 'Re-sync'
 
   return (
     <Stack className={styles.root} gap="xl">

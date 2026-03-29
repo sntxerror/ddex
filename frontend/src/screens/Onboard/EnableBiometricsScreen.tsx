@@ -44,7 +44,7 @@ export function EnableBiometricsScreen() {
           radius="xl"
           variant="default"
         >
-          Skip this step
+          Skip
         </Button>
         <Button
           className={actionStyles.actionButton}

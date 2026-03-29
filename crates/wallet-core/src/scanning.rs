@@ -102,6 +102,11 @@ fn decompress(bytes: &[u8]) -> Result<RistrettoPoint, JsError> {
         .ok_or_else(|| JsError::new("Invalid Ristretto point"))
 }
 
+/// Debug hex encoding (no hex crate dependency)
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
 /// Scan a single TxOut to check if it belongs to the given account.
 ///
 /// Algorithm:
@@ -119,6 +124,14 @@ pub fn scan_tx_out(
 ) -> Result<JsValue, JsError> {
     let tx_out: TxOutData = serde_wasm_bindgen::from_value(tx_out_js)?;
 
+    web_sys::console::log_1(&format!(
+        "[scan] scan_tx_out: globalIndex={}, blockIndex={}, target_key={}, public_key={}, num_subaddresses={}",
+        tx_out.global_index, tx_out.block_index,
+        to_hex(&tx_out.target_key),
+        to_hex(&tx_out.public_key),
+        num_subaddresses,
+    ).into());
+
     let view_bytes: [u8; 32] = view_private_key.try_into()
         .map_err(|_| JsError::new("view key must be 32 bytes"))?;
     let a = scalar_from_canonical(&view_bytes, "view")?;
@@ -134,6 +147,11 @@ pub fn scan_tx_out(
     let shared_secret_point = a * tx_pub;
     let shared_secret_compressed = shared_secret_point.compress();
 
+    web_sys::console::log_1(&format!(
+        "[scan]   shared_secret: {}",
+        to_hex(shared_secret_compressed.as_bytes()),
+    ).into());
+
     // Step 2: hs = H_s(shared_secret)
     let hs = hash_to_scalar(HASH_TO_SCALAR_TAG, &shared_secret_compressed);
 
@@ -142,26 +160,38 @@ pub fn scan_tx_out(
     let candidate_d = target - hs * RISTRETTO_BASEPOINT_POINT;
     let candidate_d_compressed = candidate_d.compress();
 
+    web_sys::console::log_1(&format!(
+        "[scan]   candidate_D: {}",
+        to_hex(candidate_d_compressed.as_bytes()),
+    ).into());
+
     // Step 4: check against known subaddress spend public keys
-    // We precompute D_i for each subaddress index and check
     let mut matched_index: Option<u64> = None;
     for i in 0..num_subaddresses {
-        // subaddress spend public key:
-        //   D_i = (Hs("mc_subaddress" || a || Scalar::from(i)) + b) * G
-        // ALL indices use the same formula. Index serialized as Scalar (32 bytes).
         let mut hasher = Blake2b512::new();
         hasher.update(b"mc_subaddress");
         hasher.update(a.as_bytes());
         hasher.update(Scalar::from(i).as_bytes());
         let hs_sub = Scalar::from_bytes_mod_order_wide(&hasher.finalize().into());
         let d_i = (hs_sub + b) * RISTRETTO_BASEPOINT_POINT;
-        if d_i.compress() == candidate_d_compressed {
+        let d_i_compressed = d_i.compress();
+        web_sys::console::log_1(&format!(
+            "[scan]   D_{}: {} {}",
+            i,
+            to_hex(d_i_compressed.as_bytes()),
+            if d_i_compressed == candidate_d_compressed { "← MATCH!" } else { "" },
+        ).into());
+        if d_i_compressed == candidate_d_compressed {
             matched_index = Some(i);
             break;
         }
     }
 
     if matched_index.is_none() {
+        web_sys::console::log_1(&format!(
+            "[scan]   NOT OWNED — no subaddress matched (checked 0..{})",
+            num_subaddresses,
+        ).into());
         let result = ScanResult {
             owned: false,
             subaddress_index: None,

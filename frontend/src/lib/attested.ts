@@ -82,6 +82,24 @@ export class AttestedConnection {
     return result
   }
 
+  /**
+   * Send encrypted request, return raw (unencrypted) response.
+   * Used for consensus ClientTxPropose where request is attest.Message
+   * but response is plain ProposeTxResponse.
+   */
+  async encryptedCallPlaintextResponse(
+    grpcPath: string,
+    requestBytes: Uint8Array,
+    aad: Uint8Array = new Uint8Array(0),
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<Uint8Array> {
+    const result = this.callQueue.then(() =>
+      this._encryptedCallPlaintextInner(grpcPath, requestBytes, aad, opts),
+    )
+    this.callQueue = result.catch(() => { /* swallow for queue chaining */ })
+    return result
+  }
+
   private async _encryptedCallInner(
     grpcPath: string,
     requestBytes: Uint8Array,
@@ -94,6 +112,11 @@ export class AttestedConnection {
     const encrypted = await this.cipher.encrypt(aad, requestBytes)
     const payload = encodeAttestMessage(encrypted.aad, encrypted.channelId, encrypted.data)
 
+    if (grpcPath.includes('ClientTxPropose')) {
+      console.log('[attested] ClientTxPropose — plaintext:', requestBytes.length, 'bytes → ciphertext:', encrypted.data.length, 'bytes → payload:', payload.length, 'bytes')
+      console.log('[attested] channelId:', encrypted.channelId.length, 'bytes, aad:', encrypted.aad.length, 'bytes')
+    }
+
     try {
       const { data, cookies } = await grpcFetch(
         grpcPath, payload,
@@ -104,7 +127,16 @@ export class AttestedConnection {
         this.cookies = cookies.join('; ')
       }
 
+      if (grpcPath.includes('ClientTxPropose')) {
+        console.log('[attested] ClientTxPropose response raw:', data.length, 'bytes, first 32:', Array.from(data.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '))
+      }
       const response = decodeAttestMessage(data)
+      if (grpcPath.includes('ClientTxPropose')) {
+        console.log('[attested] ClientTxPropose decoded — aad:', response.aad.length, 'bytes, channelId:', response.channelId.length, 'bytes, data:', response.data.length, 'bytes')
+        if (response.data.length > 0) {
+          console.log('[attested] data first 32:', Array.from(response.data.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '))
+        }
+      }
       return this.cipher.decrypt(response.aad, response.data)
     } catch (err) {
       if (err instanceof GrpcError &&
@@ -132,6 +164,60 @@ export class AttestedConnection {
 
         const response = decodeAttestMessage(data)
         return reattested.decrypt(response.aad, response.data)
+      }
+      throw err
+    }
+  }
+
+  private async _encryptedCallPlaintextInner(
+    grpcPath: string,
+    requestBytes: Uint8Array,
+    aad: Uint8Array,
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<Uint8Array> {
+    await this.ensureAttested()
+    if (!this.cipher) throw new Error('Attestation failed')
+
+    const encrypted = await this.cipher.encrypt(aad, requestBytes)
+    const payload = encodeAttestMessage(encrypted.aad, encrypted.channelId, encrypted.data)
+
+    console.log('[attested] encrypted request:', requestBytes.length, 'bytes → ciphertext:', encrypted.data.length, 'bytes → payload:', payload.length, 'bytes')
+
+    try {
+      const { data, cookies } = await grpcFetch(
+        grpcPath, payload,
+        { cookies: this.cookies, timeoutMs: opts?.timeoutMs, signal: opts?.signal },
+      )
+
+      if (cookies.length > 0) {
+        this.cookies = cookies.join('; ')
+      }
+
+      console.log('[attested] plaintext response:', data.length, 'bytes')
+      return data
+    } catch (err) {
+      if (err instanceof GrpcError &&
+        (err.code === GRPC_STATUS.PERMISSION_DENIED || err.code === GRPC_STATUS.UNAUTHENTICATED)) {
+        console.warn(`[attested] session expired (code ${err.code}), re-attesting...`)
+        this.cipher = null
+        this.cookies = ''
+        await this.attest()
+
+        const reattested = this.getCipher()
+        if (!reattested) throw new Error('Re-attestation failed')
+
+        const retryEncrypted = await reattested.encrypt(aad, requestBytes)
+        const retryPayload = encodeAttestMessage(retryEncrypted.aad, retryEncrypted.channelId, retryEncrypted.data)
+        const { data, cookies } = await grpcFetch(
+          grpcPath, retryPayload,
+          { cookies: this.cookies, timeoutMs: opts?.timeoutMs, signal: opts?.signal },
+        )
+
+        if (cookies.length > 0) {
+          this.cookies = cookies.join('; ')
+        }
+
+        return data
       }
       throw err
     }

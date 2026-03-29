@@ -19,7 +19,7 @@ use hkdf::Hkdf;
 use sha2::Sha512;
 
 use crate::keys::scalar_from_canonical;
-use crate::proto::{encode_proto_bytes, encode_varint_field, encode_fixed64, encode_submessage, encode_packed_fixed64};
+use crate::proto::{encode_varint, encode_proto_bytes, encode_varint_field, encode_fixed64, encode_submessage, encode_packed_fixed64};
 
 // ── Domain separation tags (must match MobileCoin exactly) ──
 
@@ -112,7 +112,7 @@ pub struct BuiltTxOut {
     pub masked_value: u64,
     pub masked_token_id: Vec<u8>, // 8 bytes LE
     pub commitment: Vec<u8>,      // 32-byte compressed Ristretto (Pedersen)
-    pub e_fog_hint: Vec<u8>,      // 128 bytes (encrypted fog hint)
+    pub e_fog_hint: Vec<u8>,      // 84 bytes (encrypted fog hint, MC requires exactly U84)
     pub e_memo: Vec<u8>,          // 66 bytes (encrypted memo, required for block version >= 1)
     /// The blinding factor (needed for MLSAG if this is a change output)
     pub blinding: Vec<u8>,        // 32-byte Scalar (NOT included in wire format)
@@ -260,12 +260,333 @@ fn encode_tx_in(ring: &[RingMember]) -> Vec<u8> {
     let mut buf = Vec::new();
 
     for member in ring {
-        // ring TxOut (field 1) — use raw protobuf bytes from proxy
+        // ring TxOut (field 1) — raw bytes from fog
         encode_submessage(&mut buf, 1, &member.tx_out_bytes);
-        // proof (field 2) — use raw protobuf bytes from proxy
+        // proof (field 2) — raw bytes from fog
         encode_submessage(&mut buf, 2, &member.proof_bytes);
     }
 
+    buf
+}
+
+/// Re-encode a TxOutMembershipProof to ensure `index` (field 1) and
+/// `highest_index` (field 2) use fixed64 wire type (wire type 1).
+///
+/// The fog server may encode these as varint (wire type 0 / `uint64`), but
+/// the consensus enclave's prost definition expects fixed64 (wire type 1).
+/// This function parses the raw proto bytes, extracts all fields, and
+/// re-encodes with the correct wire types.
+///
+/// TxOutMembershipProof {
+///   fixed64 index = 1;
+///   fixed64 highest_index = 2;
+///   repeated TxOutMembershipElement elements = 3;
+/// }
+#[allow(dead_code)]
+fn normalize_membership_proof(raw: &[u8]) -> Vec<u8> {
+    let mut index: u64 = 0;
+    let mut highest_index: u64 = 0;
+    let mut elements: Vec<&[u8]> = Vec::new();
+
+    // Parse all fields from the raw proof bytes
+    let mut pos = 0;
+    while pos < raw.len() {
+        let (tag, new_pos) = decode_proto_varint(raw, pos);
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u8;
+
+        match (field_number, wire_type) {
+            // index — might be varint (0) or fixed64 (1)
+            (1, 0) => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                index = val;
+                pos = new_pos;
+            }
+            (1, 1) => {
+                if pos + 8 <= raw.len() {
+                    index = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
+            // highest_index — might be varint (0) or fixed64 (1)
+            (2, 0) => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                highest_index = val;
+                pos = new_pos;
+            }
+            (2, 1) => {
+                if pos + 8 <= raw.len() {
+                    highest_index = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
+            // elements (field 3, length-delimited submessage) — pass through as-is
+            (3, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                let end = pos + len as usize;
+                if end <= raw.len() {
+                    elements.push(&raw[pos..end]);
+                    pos = end;
+                } else {
+                    break;
+                }
+            }
+            // Skip unknown fields
+            (_, 0) => { let (_, new_pos) = decode_proto_varint(raw, pos); pos = new_pos; }
+            (_, 1) => { pos += 8; }
+            (_, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos + len as usize;
+            }
+            (_, 5) => { pos += 4; }
+            _ => break,
+        }
+    }
+
+    // Re-encode with fixed64 for index and highest_index
+    let mut buf = Vec::with_capacity(raw.len() + 16);
+
+    // index (field 1, fixed64) — always encode, even if 0
+    let tag1 = (1u32 << 3) | 1; // field 1, wire type 1
+    encode_varint(&mut buf, tag1 as u64);
+    buf.extend_from_slice(&index.to_le_bytes());
+
+    // highest_index (field 2, fixed64) — always encode, even if 0
+    let tag2 = (2u32 << 3) | 1; // field 2, wire type 1
+    encode_varint(&mut buf, tag2 as u64);
+    buf.extend_from_slice(&highest_index.to_le_bytes());
+
+    // elements (field 3, repeated submessage) — normalize Range fields inside
+    for elem in &elements {
+        let normalized_elem = normalize_membership_element(elem);
+        encode_submessage(&mut buf, 3, &normalized_elem);
+    }
+
+    buf
+}
+
+/// Decode a varint from raw bytes, returning (value, new_position).
+#[allow(dead_code)]
+fn decode_proto_varint(buf: &[u8], mut pos: usize) -> (u64, usize) {
+    let mut value = 0u64;
+    let mut shift = 0u32;
+    while pos < buf.len() {
+        let b = buf[pos];
+        value |= ((b & 0x7f) as u64) << shift;
+        pos += 1;
+        if b & 0x80 == 0 { break; }
+        shift += 7;
+    }
+    (value, pos)
+}
+
+/// Re-encode a TxOut to ensure MaskedAmount.masked_value uses fixed64.
+///
+/// The fog server may encode masked_value as varint, but consensus expects fixed64.
+/// We parse the outer TxOut, find the MaskedAmount submessage (field 1 or 6),
+/// normalize its masked_value field, and re-encode.
+///
+/// TxOut {
+///   MaskedAmountV1 masked_amount_v1 = 1 { ... fixed64 masked_value = 2; ... }
+///   CompressedRistretto target_key = 2;
+///   CompressedRistretto public_key = 3;
+///   EncryptedFogHint e_fog_hint = 4;
+///   EncryptedMemo e_memo = 5;
+///   MaskedAmountV2 masked_amount_v2 = 6 { ... fixed64 masked_value = 2; ... }
+/// }
+#[allow(dead_code)]
+fn normalize_tx_out(raw: &[u8]) -> Vec<u8> {
+    // Walk through and re-emit all fields, normalizing MaskedAmount submessages
+    let mut buf = Vec::with_capacity(raw.len() + 8);
+    let mut pos = 0;
+
+    while pos < raw.len() {
+        let start = pos;
+        let (tag, new_pos) = decode_proto_varint(raw, pos);
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u8;
+
+        match wire_type {
+            2 => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                let end = pos + len as usize;
+                if end > raw.len() { break; }
+                let data = &raw[pos..end];
+
+                if field_number == 1 || field_number == 6 {
+                    // MaskedAmount — normalize masked_value inside
+                    let normalized = normalize_masked_amount(data);
+                    encode_submessage(&mut buf, field_number, &normalized);
+                } else {
+                    // Pass through other length-delimited fields as-is
+                    encode_submessage(&mut buf, field_number, data);
+                }
+                pos = end;
+            }
+            0 => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                encode_varint_field(&mut buf, field_number, val);
+            }
+            1 => {
+                if pos + 8 <= raw.len() {
+                    let val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap());
+                    encode_fixed64(&mut buf, field_number, val);
+                    pos += 8;
+                } else { break; }
+            }
+            5 => {
+                if pos + 4 <= raw.len() {
+                    buf.extend_from_slice(&raw[start..pos+4]);
+                    pos += 4;
+                } else { break; }
+            }
+            _ => break,
+        }
+    }
+    buf
+}
+
+/// Re-encode a MaskedAmount submessage to ensure masked_value (field 2) is fixed64.
+///
+/// MaskedAmount { CompressedRistretto commitment = 1; fixed64 masked_value = 2; bytes masked_token_id = 3; }
+#[allow(dead_code)]
+fn normalize_masked_amount(raw: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(raw.len() + 8);
+    let mut pos = 0;
+
+    while pos < raw.len() {
+        let (tag, new_pos) = decode_proto_varint(raw, pos);
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u8;
+
+        match (field_number, wire_type) {
+            // masked_value (field 2) — must be fixed64
+            (2, 0) => {
+                // Varint → re-encode as fixed64
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                // Always encode (even if 0, since prost may expect it)
+                let tag2 = (2u32 << 3) | 1;
+                encode_varint(&mut buf, tag2 as u64);
+                buf.extend_from_slice(&val.to_le_bytes());
+            }
+            (2, 1) => {
+                // Already fixed64 — pass through
+                if pos + 8 <= raw.len() {
+                    let tag2 = (2u32 << 3) | 1;
+                    encode_varint(&mut buf, tag2 as u64);
+                    buf.extend_from_slice(&raw[pos..pos+8]);
+                    pos += 8;
+                } else { break; }
+            }
+            // Everything else: pass through
+            (_, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                let end = pos + len as usize;
+                if end > raw.len() { break; }
+                encode_submessage(&mut buf, field_number, &raw[pos..end]);
+                pos = end;
+            }
+            (_, 0) => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                encode_varint_field(&mut buf, field_number, val);
+            }
+            (_, 1) => {
+                if pos + 8 <= raw.len() {
+                    encode_fixed64(&mut buf, field_number, u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()));
+                    pos += 8;
+                } else { break; }
+            }
+            _ => break,
+        }
+    }
+    buf
+}
+
+/// Re-encode TxOutMembershipElement to ensure Range fields use fixed64.
+///
+/// TxOutMembershipElement { Range range = 1; TxOutMembershipHash hash = 2; }
+/// Range { fixed64 from = 1; fixed64 to = 2; }
+#[allow(dead_code)]
+fn normalize_membership_element(raw: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(raw.len() + 16);
+    let mut pos = 0;
+
+    while pos < raw.len() {
+        let (tag, new_pos) = decode_proto_varint(raw, pos);
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u8;
+
+        match (field_number, wire_type) {
+            // range (field 1, submessage) — normalize inner Range
+            (1, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                let end = pos + len as usize;
+                if end > raw.len() { break; }
+                let normalized = normalize_range(&raw[pos..end]);
+                encode_submessage(&mut buf, 1, &normalized);
+                pos = end;
+            }
+            // hash (field 2, submessage) — pass through
+            (_, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+                let end = pos + len as usize;
+                if end > raw.len() { break; }
+                encode_submessage(&mut buf, field_number, &raw[pos..end]);
+                pos = end;
+            }
+            (_, 0) => { let (_, new_pos) = decode_proto_varint(raw, pos); pos = new_pos; }
+            (_, 1) => { pos += 8; }
+            _ => break,
+        }
+    }
+    buf
+}
+
+/// Re-encode Range { fixed64 from = 1; fixed64 to = 2; }
+#[allow(dead_code)]
+fn normalize_range(raw: &[u8]) -> Vec<u8> {
+    let mut from_val: u64 = 0;
+    let mut to_val: u64 = 0;
+    let mut pos = 0;
+
+    while pos < raw.len() {
+        let (tag, new_pos) = decode_proto_varint(raw, pos);
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u8;
+
+        match (field_number, wire_type) {
+            (1, 0) => { let (v, p) = decode_proto_varint(raw, pos); from_val = v; pos = p; }
+            (1, 1) => { if pos + 8 <= raw.len() { from_val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
+            (2, 0) => { let (v, p) = decode_proto_varint(raw, pos); to_val = v; pos = p; }
+            (2, 1) => { if pos + 8 <= raw.len() { to_val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
+            (_, 0) => { let (_, p) = decode_proto_varint(raw, pos); pos = p; }
+            (_, 1) => { pos += 8; }
+            (_, 2) => { let (l, p) = decode_proto_varint(raw, pos); pos = p + l as usize; }
+            _ => break,
+        }
+    }
+
+    // Re-encode as fixed64 — always emit both fields
+    let mut buf = Vec::with_capacity(18);
+    let tag1 = (1u32 << 3) | 1;
+    encode_varint(&mut buf, tag1 as u64);
+    buf.extend_from_slice(&from_val.to_le_bytes());
+    let tag2 = (2u32 << 3) | 1;
+    encode_varint(&mut buf, tag2 as u64);
+    buf.extend_from_slice(&to_val.to_le_bytes());
     buf
 }
 
@@ -351,7 +672,6 @@ fn encode_tx(tx: &BuiltTransaction) -> Vec<u8> {
 /// Round-trip verification: parse the encoded Tx protobuf back and re-compute
 /// the TxPrefix hash from the parsed protobuf (same path MC consensus takes).
 /// Any mismatch means our digest_built_tx_out differs from protobuf round-trip.
-#[cfg(debug_assertions)]
 fn verify_tx_prefix_hash_round_trip(
     tx_bytes: &[u8],
     expected_prefix_hash: &[u8; 32],
@@ -871,11 +1191,11 @@ fn build_tx_out_inner(
 }
 
 /// Size of the encrypted fog hint.
-/// VersionedCryptoBox output is 84 bytes (34 ciphertext + 32 ephemeral pubkey + 16 tag + 2 version),
-/// but MobileCoin's EncryptedFogHint is a fixed 128-byte struct. The trailing 44 bytes are zero-padded.
-const ENCRYPTED_FOG_HINT_LEN: usize = 128;
+/// VersionedCryptoBox output is 84 bytes (34 ciphertext + 32 ephemeral pubkey + 16 tag + 2 version).
+/// MC's EncryptedFogHint type (U84) requires exactly 84 bytes — its custom prost decoder rejects any other size.
+const ENCRYPTED_FOG_HINT_LEN: usize = 84;
 
-/// Build an encrypted fog hint using VersionedCryptoBox format (128 bytes, zero-padded).
+/// Build an encrypted fog hint using VersionedCryptoBox format (84 bytes).
 ///
 /// The fog hint tells the fog ingest enclave that this TxOut should be
 /// findable by the recipient.
@@ -933,8 +1253,8 @@ fn build_fog_hint(
             let tag = cipher.encrypt_in_place_detached(nonce, &[], &mut buffer)
                 .map_err(|_| JsError::new("AES-GCM encrypt failed"))?;
 
-            // Pack in VersionedCryptoBox format (first 84 bytes, rest stays zero):
-            //   [ciphertext(34)] [ephemeral_pubkey(32)] [tag(16)] [major(1)] [minor(1)] [zero(44)] = 128
+            // Pack in VersionedCryptoBox format (84 bytes total):
+            //   [ciphertext(34)] [ephemeral_pubkey(32)] [tag(16)] [major(1)] [minor(1)] = 84
             hint[0..34].copy_from_slice(&buffer);
             hint[34..66].copy_from_slice(ephemeral_public.as_bytes());
             hint[66..82].copy_from_slice(tag.as_slice());
@@ -1466,6 +1786,10 @@ pub fn build_transaction(
     }
 
     // ── Build pseudo-outputs and prepare for prefix hash ──
+    // Ring member bytes from fog are already in correct varint encoding (uint64).
+    // The prost canonicalization step (decode+re-encode) at the end handles
+    // any remaining wire format normalization.
+
     let h_token = token_generator(TOKEN_ID_MOB);
     let mut input_ring_data: Vec<(&[RingMember], Vec<u8>)> = Vec::new();
 
@@ -1602,12 +1926,22 @@ pub fn build_transaction(
     // Encode the full Tx as protobuf bytes for consensus submission
     let tx_bytes = encode_tx(&tx);
 
-    // Round-trip verification (debug builds only — validates our protobuf encoding)
-    #[cfg(debug_assertions)]
+    web_sys::console::log_1(&format!(
+        "[WASM] encode_tx: {} bytes, {} inputs, {} outputs, fee={}, tombstone={}",
+        tx_bytes.len(), tx.inputs.len(), tx.outputs.len(), fee, tombstone_block
+    ).into());
+
+    // Round-trip verification — validates our protobuf encoding matches what MC consensus expects
     {
         let empty_range_proof_bytes: &[u8] = &[];
         verify_tx_prefix_hash_round_trip(&tx_bytes, &tx_prefix_hash, fee, tombstone_block, &mlsag_signing_digest, &pseudo_output_refs, empty_range_proof_bytes, &range_proofs_vec, &tx.outputs, TOKEN_ID_MOB)?;
     }
+
+    // Prost canonicalization — decode+re-encode through prost to produce
+    // canonical bytes matching what MC consensus enclave expects.
+    // This normalizes wire types, field ordering, default value presence, etc.
+    let tx_bytes = crate::prost_verify::canonicalize_tx_bytes(&tx_bytes)
+        .map_err(|e| JsError::new(&format!("Prost canonicalization failed: {}", e)))?;
 
     // Extract key images for spend tracking
     let key_images: Vec<Vec<u8>> = tx.inputs.iter()

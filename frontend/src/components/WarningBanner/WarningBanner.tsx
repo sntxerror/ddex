@@ -30,7 +30,10 @@ export function WarningBanner({
             </Text>
           </div>
           <Text className={styles.bodyText} size="sm">
-            Your wallet only lives in this browser tab — closing the tab will erase it permanently. Back up your recovery phrase and set a PIN lock to keep it safe across devices and sessions.
+            Your wallet only lives in this browser tab — closing the tab will erase it permanently.
+          </Text>
+          <Text className={styles.bodyText} size="sm">
+            Back up your recovery phrase and set a PIN lock to keep it safe across devices and sessions.
           </Text>
         </Stack>
         {actionLabel && onAction ? (

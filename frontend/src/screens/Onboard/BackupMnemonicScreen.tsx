@@ -49,7 +49,7 @@ export function BackupMnemonicScreen() {
           radius="xl"
           variant="default"
         >
-          Skip this step
+          Skip
         </Button>
         <Button
           className={actionStyles.actionButton}

@@ -249,3 +249,122 @@ pub fn get_b58_address(account_key_js: JsValue) -> Result<String, JsError> {
 
     Ok(bs58::encode(payload).with_alphabet(bs58::Alphabet::BITCOIN).into_string())
 }
+
+/// Decode and validate a MobileCoin B58-encoded public address.
+///
+/// Returns a Recipient-compatible object:
+///   { view_public_key: [u8;32], spend_public_key: [u8;32], fog_report_url: String }
+///
+/// Rejects invalid checksums, malformed protobuf, or missing key fields.
+#[wasm_bindgen]
+pub fn decode_b58_address(b58_string: &str) -> Result<JsValue, JsError> {
+    let payload = bs58::decode(b58_string)
+        .with_alphabet(bs58::Alphabet::BITCOIN)
+        .into_vec()
+        .map_err(|e| JsError::new(&format!("Invalid base58: {}", e)))?;
+
+    if payload.len() < 5 {
+        return Err(JsError::new("Address too short"));
+    }
+
+    let stored_checksum = u32::from_le_bytes(
+        payload[..4].try_into().map_err(|_| JsError::new("Checksum read error"))?
+    );
+    let wrapper_bytes = &payload[4..];
+    let computed_checksum = crc32fast::hash(wrapper_bytes);
+
+    if stored_checksum != computed_checksum {
+        return Err(JsError::new("Invalid checksum — address may be corrupted"));
+    }
+
+    // Parse PrintableWrapper { PublicAddress public_address = 1 }
+    let addr_bytes = parse_submessage(wrapper_bytes, 1)?;
+
+    // Parse PublicAddress fields
+    let view_key_msg = parse_submessage(&addr_bytes, 1)?;
+    let view_public_key = parse_bytes_field(&view_key_msg, 1)?;
+
+    let spend_key_msg = parse_submessage(&addr_bytes, 2)?;
+    let spend_public_key = parse_bytes_field(&spend_key_msg, 1)?;
+
+    if view_public_key.len() != 32 {
+        return Err(JsError::new(&format!("view_public_key must be 32 bytes, got {}", view_public_key.len())));
+    }
+    if spend_public_key.len() != 32 {
+        return Err(JsError::new(&format!("spend_public_key must be 32 bytes, got {}", spend_public_key.len())));
+    }
+
+    // fog_report_url (field 3, optional string)
+    let fog_report_url = match parse_bytes_field_opt(&addr_bytes, 3) {
+        Some(bytes) => String::from_utf8(bytes).unwrap_or_default(),
+        None => String::new(),
+    };
+
+    #[derive(Serialize)]
+    struct DecodedAddress {
+        view_public_key: Vec<u8>,
+        spend_public_key: Vec<u8>,
+        fog_report_url: String,
+    }
+
+    Ok(serde_wasm_bindgen::to_value(&DecodedAddress {
+        view_public_key,
+        spend_public_key,
+        fog_report_url,
+    })?)
+}
+
+// ── Minimal protobuf field parsers for decode_b58_address ──
+
+/// Extract a length-delimited submessage for a given field number.
+fn parse_submessage(buf: &[u8], target_field: u32) -> Result<Vec<u8>, JsError> {
+    let mut pos = 0;
+    while pos < buf.len() {
+        let (tag, new_pos) = read_varint_u64(buf, pos)?;
+        pos = new_pos;
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 7) as u32;
+
+        match wire_type {
+            0 => { let (_, p) = read_varint_u64(buf, pos)?; pos = p; }
+            1 => { pos += 8; }
+            5 => { pos += 4; }
+            2 => {
+                let (len, p) = read_varint_u64(buf, pos)?;
+                pos = p;
+                let len = len as usize;
+                if field_number == target_field {
+                    return Ok(buf[pos..pos + len].to_vec());
+                }
+                pos += len;
+            }
+            _ => return Err(JsError::new(&format!("Unknown wire type {}", wire_type))),
+        }
+    }
+    Err(JsError::new(&format!("Field {} not found", target_field)))
+}
+
+/// Extract a bytes field (optional version — returns None if not found).
+fn parse_bytes_field_opt(buf: &[u8], target_field: u32) -> Option<Vec<u8>> {
+    parse_submessage(buf, target_field).ok()
+}
+
+/// Extract a bytes field (required version — returns error if not found).
+fn parse_bytes_field(buf: &[u8], target_field: u32) -> Result<Vec<u8>, JsError> {
+    parse_submessage(buf, target_field)
+}
+
+fn read_varint_u64(buf: &[u8], pos: usize) -> Result<(u64, usize), JsError> {
+    let mut result: u64 = 0;
+    let mut shift = 0;
+    let mut p = pos;
+    while p < buf.len() {
+        let byte = buf[p] as u64;
+        result |= (byte & 0x7f) << shift;
+        p += 1;
+        if byte & 0x80 == 0 { return Ok((result, p)); }
+        shift += 7;
+        if shift >= 64 { return Err(JsError::new("Varint overflow")); }
+    }
+    Err(JsError::new("Truncated varint"))
+}

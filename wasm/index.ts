@@ -89,6 +89,22 @@ interface GeneratedWalletCoreModule {
     spendPrivateKey: Uint8Array,
     ciphertext: Uint8Array,
   ) => Uint8Array
+  readonly decode_b58_address: (b58: string) => DecodedAddress
+  readonly build_transaction: (
+    accountKey: WasmAccountKey,
+    inputs: OwnedTxOutInput[],
+    recipient: Recipient,
+    amount: bigint,
+    fee: bigint,
+    changeRecipient: Recipient,
+    tombstoneBlock: bigint,
+    fogIngestPubkey: Uint8Array | null,
+    paymentRequestId: bigint,
+  ) => TxBuildResult
+  readonly derive_subaddress: (
+    accountKey: WasmAccountKey,
+    index: bigint,
+  ) => DerivedSubaddress
 }
 
 type GeneratedModuleLoader = () => Promise<GeneratedWalletCoreModule>
@@ -235,4 +251,92 @@ export async function decryptFogCiphertext(
   const module = await loadGeneratedModule()
   await initWalletCore()
   return module.decrypt_fog_ciphertext(viewPrivateKey, spendPrivateKey, ciphertext)
+}
+
+// ── Types for transaction construction ──
+
+export interface DecodedAddress {
+  view_public_key: number[]
+  spend_public_key: number[]
+  fog_report_url: string
+}
+
+export interface Recipient {
+  view_public_key: number[]
+  spend_public_key: number[]
+  fog_report_url: string
+}
+
+export interface RingMember {
+  target_key: number[]
+  public_key: number[]
+  commitment: number[]
+  tx_out_bytes: number[]
+  proof_bytes: number[]
+}
+
+export interface OwnedTxOutInput {
+  real_index: number
+  ring: RingMember[]
+  subaddress_index: number
+  value: bigint
+  token_id: bigint
+}
+
+export interface TxBuildResult {
+  tx_bytes: number[]
+  tx_prefix_hash: number[]
+  key_images: number[][]
+  confirmation_number: number[]
+}
+
+export interface DerivedSubaddress {
+  view_public_key: number[]
+  spend_public_key: number[]
+  fog_report_url: string
+  fog_authority_sig: number[]
+  subaddress_index: number
+}
+
+// ── Transaction-related wrappers ──
+
+export async function decodeB58Address(b58: string): Promise<DecodedAddress> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.decode_b58_address(b58)
+}
+
+export async function buildTransaction(
+  accountKey: WalletAccountKey,
+  inputs: OwnedTxOutInput[],
+  recipient: Recipient,
+  amount: bigint,
+  fee: bigint,
+  changeRecipient: Recipient,
+  tombstoneBlock: bigint,
+  fogIngestPubkey: Uint8Array | null,
+  paymentRequestId: bigint,
+): Promise<TxBuildResult> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.build_transaction(
+    accountKey,
+    inputs,
+    recipient,
+    amount,
+    fee,
+    changeRecipient,
+    tombstoneBlock,
+    fogIngestPubkey,
+    paymentRequestId,
+  )
+}
+
+export async function deriveSubaddress(
+  accountKey: WalletAccountKey,
+  index: bigint,
+): Promise<DerivedSubaddress> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.derive_subaddress(accountKey, index)
 }

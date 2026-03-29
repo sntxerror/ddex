@@ -1,15 +1,21 @@
 /**
  * Fog balance sync client for MobileCoin.
  *
- * Orchestrates the full flow:
- *   1. Attest with fog-view (Noise NX handshake)
- *   2. Query for RNG records (initial empty query)
- *   3. Derive KexRng search keys via WASM
- *   4. Query fog-view with search keys
- *   5. Decrypt found TxOuts via WASM fog ciphertext decryption
- *   6. Scan each TxOut for ownership and unmask amounts
- *   7. Check key images against fog-ledger for spent detection
- *   8. Sum unspent TxOuts = spendable balance
+ * Implements the same two-phase polling algorithm as MC's reference client
+ * (see mobilecoin/fog/view/protocol/src/polling.rs):
+ *
+ *   Phase 1 — Empty query: get RNG records + sync metadata
+ *   Phase 2 — Exponential search loop:
+ *     - Start with 1 key/RNG, double each round, cap at 500/num_live_rngs
+ *     - Each RNG is a stateful cursor with start_index tracking
+ *     - "Dead" RNGs (didn't advance full request_multiplier) stop being queried
+ *     - Loop until all RNGs are dead
+ *     - Active RNGs queried first for fast initial balance
+ *   Phase 3 — Key image check for spent detection
+ *   Phase 4 — Sum unspent balance
+ *
+ * Intermediate results are emitted via onResult callback so the UI can
+ * show a quick initial balance while deeper scanning continues.
  */
 
 import { getConnection, dropConnection } from '../lib/attested'
@@ -46,14 +52,14 @@ const PATHS = {
   fogKeyImageCheck: '/fog_ledger.FogKeyImageAPI/CheckKeyImages',
 } as const
 
-// How many search keys to generate per RNG record per batch
-const SEARCH_KEY_BATCH_SIZE = 5
-
-// Max subaddresses to scan for ownership (0 = default subaddress)
+// Max subaddresses to scan for ownership (0 = default, 1 = change)
 const NUM_SUBADDRESSES = 2n
 
-// Timeout for query calls (fog queries can be slow)
+// Timeout for query calls
 const QUERY_TIMEOUT_MS = 90_000
+
+// MC reference caps at 500 search keys per gRPC query
+const MAX_SEARCH_KEYS_PER_QUERY = 500
 
 // ── Types ──
 
@@ -63,6 +69,7 @@ export interface OwnedTxOut {
   value: bigint          // picoMOB
   tokenId: bigint
   keyImage: Uint8Array   // 32 bytes
+  subaddressIndex: number
   spent: boolean
 }
 
@@ -78,13 +85,27 @@ export interface FogSyncProgress {
   detail?: string
 }
 
+// ── Internal: per-RNG cursor state ──
+
+interface RngCursor {
+  record: RngRecord
+  /** Next search key counter (starts at 0, advances past found results) */
+  nextIndex: bigint
+  /** True when this RNG has been exhausted (produced fewer hits than requested) */
+  dead: boolean
+}
+
 // ── Helpers ──
 
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError'
 }
 
-// ── Fog Client ──
+function toHex(arr: Uint8Array | number[]): string {
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// ── Fog connections ──
 
 function fogViewConn() {
   return getConnection(
@@ -102,171 +123,63 @@ function fogKeyImageConn() {
   )
 }
 
-/**
- * Full fog balance sync for a given account.
- *
- * This is the main entry point. It performs the entire flow from attestation
- * through to a final spendable balance.
- */
-export async function syncFogBalance(
-  account: WalletAccountKey,
-  onProgress?: (progress: FogSyncProgress) => void,
+// ── Core: query fog-view with retry ──
+
+async function fogViewQuery(
+  searchKeys: Uint8Array[],
+  startFromUserEventId: number,
+  startFromBlockIndex: number,
   signal?: AbortSignal,
-): Promise<FogSyncResult> {
-  const viewKey = account.view_private_key
-  const spendKey = account.spend_private_key
+): Promise<QueryResponse> {
   const queryOpts = { timeoutMs: QUERY_TIMEOUT_MS, signal }
-
-  // Phase 1: Initial query to get RNG records
-  onProgress?.({ phase: 'attesting' })
-
-  const conn = fogViewConn()
-  let response: QueryResponse
+  const request = encodeQueryRequest(searchKeys)
+  const aad = encodeQueryRequestAAD(startFromUserEventId, startFromBlockIndex)
 
   try {
-    // Empty search keys query — returns RNG records and sync metadata
-    const emptyRequest = encodeQueryRequest([])
-    const aad = encodeQueryRequestAAD(0, 0)
-
-    onProgress?.({ phase: 'querying-rng' })
-    const responseBytes = await conn.encryptedCall(
+    const conn = fogViewConn()
+    const bytes = await conn.encryptedCall(
       `${PATH_PREFIX}${PATHS.fogViewQuery}`,
-      emptyRequest,
-      aad,
-      queryOpts,
+      request, aad, queryOpts,
     )
-    response = decodeQueryResponse(responseBytes)
+    return decodeQueryResponse(bytes)
   } catch (err) {
     if (isAbortError(err)) throw err
     if (err instanceof GrpcError &&
       (err.code === GRPC_STATUS.DEADLINE_EXCEEDED || err.code === GRPC_STATUS.UNAVAILABLE)) {
+      console.warn('[fog] Query failed, retrying with fresh connection:', err)
       dropConnection('fog-view')
-      // Retry once with fresh connection
-      const retryConn = fogViewConn()
-      const emptyRequest = encodeQueryRequest([])
-      const aad = encodeQueryRequestAAD(0, 0)
-      const responseBytes = await retryConn.encryptedCall(
+      const conn = fogViewConn()
+      const bytes = await conn.encryptedCall(
         `${PATH_PREFIX}${PATHS.fogViewQuery}`,
-        emptyRequest,
-        aad,
-        queryOpts,
+        request, aad, queryOpts,
       )
-      response = decodeQueryResponse(responseBytes)
-    } else {
-      throw err
+      return decodeQueryResponse(bytes)
     }
+    throw err
   }
+}
 
-  if (response.rngRecords.length === 0) {
-    // No RNG records = this account has never received through Fog
-    console.warn('[fog] 0 RNG records — account has never received via fog (wrong key? wrong network?)')
-    onProgress?.({ phase: 'done' })
-    return {
-      ownedTxOuts: [],
-      totalBalance: 0n,
-      highestProcessedBlock: response.highestProcessedBlock,
-      syncedAt: Date.now(),
-    }
-  }
+// ── Core: process Found results → OwnedTxOut[] ──
 
-  // Phase 2: Derive search keys for each RNG record
-  onProgress?.({ phase: 'deriving-keys', detail: `${response.rngRecords.length} RNG record(s)` })
-  const allSearchKeys: Uint8Array[] = []
-  const searchKeyToRng = new Map<string, RngRecord>()
+async function processFoundResults(
+  results: FixedTxOutSearchResult[],
+  viewKey: Uint8Array,
+  spendKey: Uint8Array,
+): Promise<OwnedTxOut[]> {
+  const owned: OwnedTxOut[] = []
 
-  for (const rng of response.rngRecords) {
-    if (rng.version !== 0) {
-      console.warn(`[fog] Skipping RNG record with unsupported version ${rng.version}`)
-      continue
-    }
-
-    const result = await deriveKexRngSearchKeys(
-      viewKey,
-      spendKey,
-      rng.pubkey,
-      0n,
-      SEARCH_KEY_BATCH_SIZE,
-    )
-
-    for (const keyArr of result.search_keys) {
-      const key = new Uint8Array(keyArr)
-      allSearchKeys.push(key)
-      const hex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('')
-      searchKeyToRng.set(hex, rng)
-    }
-  }
-
-  if (allSearchKeys.length === 0) {
-    onProgress?.({ phase: 'done' })
-    return {
-      ownedTxOuts: [],
-      totalBalance: 0n,
-      highestProcessedBlock: response.highestProcessedBlock,
-      syncedAt: Date.now(),
-    }
-  }
-
-  // Phase 3: Query fog-view with search keys (with retry on failure)
-  onProgress?.({ phase: 'querying-txos', detail: `${allSearchKeys.length} search key(s)` })
-
-  let queryResponse: QueryResponse
-  const queryRequest = encodeQueryRequest(allSearchKeys)
-  const queryAad = encodeQueryRequestAAD(
-    Number(response.nextStartFromUserEventId),
-    0,
-  )
-
-  try {
-    const queryResponseBytes = await conn.encryptedCall(
-      `${PATH_PREFIX}${PATHS.fogViewQuery}`,
-      queryRequest,
-      queryAad,
-      queryOpts,
-    )
-    queryResponse = decodeQueryResponse(queryResponseBytes)
-  } catch (err) {
-    if (isAbortError(err)) throw err
-    // Retry once with fresh connection on timeout/unavailable
-    console.warn('[fog] Search key query failed, retrying with fresh connection:', err)
-    dropConnection('fog-view')
-    const retryConn = fogViewConn()
-    const retryResponseBytes = await retryConn.encryptedCall(
-      `${PATH_PREFIX}${PATHS.fogViewQuery}`,
-      queryRequest,
-      queryAad,
-      queryOpts,
-    )
-    queryResponse = decodeQueryResponse(retryResponseBytes)
-  }
-
-  // Phase 4: Process found TxOuts
-  onProgress?.({ phase: 'scanning', detail: `${queryResponse.fixedTxOutSearchResults.length} result(s)` })
-
-  const ownedTxOuts: OwnedTxOut[] = []
-  const foundResults = queryResponse.fixedTxOutSearchResults.filter(
-    (r: FixedTxOutSearchResult) => r.resultCode === 1, // Found
-  )
-
-  for (let fi = 0; fi < foundResults.length; fi++) {
-    const result = foundResults[fi]
+  for (let fi = 0; fi < results.length; fi++) {
+    const result = results[fi]
     try {
-      // Truncate ciphertext to actual payload length (FixedTxOutSearchResult
-      // zero-pads to 255 bytes; the real VersionedCryptoBox is payloadLength bytes)
       const actualCiphertext = result.payloadLength > 0 && result.payloadLength < result.ciphertext.length
         ? result.ciphertext.slice(0, result.payloadLength)
         : result.ciphertext
 
-      // Decrypt the fog ciphertext to get TxOutRecord proto bytes
-      const plaintext = await decryptFogCiphertext(
-        viewKey,
-        spendKey,
-        actualCiphertext,
-      )
-
-      // Decode TxOutRecord proto
+      const plaintext = await decryptFogCiphertext(viewKey, spendKey, actualCiphertext)
       const record = decodeTxOutRecord(plaintext)
 
-      // Build TxOutData for scan_tx_out
+      console.log(`[fog]   TxOut: globalIndex=${record.globalIndex}, block=${record.blockIndex}, target=${toHex(record.txOutTargetKeyData).slice(0, 16)}..`)
+
       const txOutData: TxOutData = {
         target_key: Array.from(record.txOutTargetKeyData),
         public_key: Array.from(record.txOutPublicKeyData),
@@ -278,20 +191,17 @@ export async function syncFogBalance(
         e_memo: record.txOutEMemoData.length > 0 ? Array.from(record.txOutEMemoData) : undefined,
       }
 
-      // Scan for ownership and unmask amount
-      const scanResult = await scanTxOut(
-        txOutData,
-        viewKey,
-        spendKey,
-        NUM_SUBADDRESSES,
-      )
+      const scanResult = await scanTxOut(txOutData, viewKey, spendKey, NUM_SUBADDRESSES)
+
       if (scanResult.owned && scanResult.value != null && scanResult.key_image != null) {
-        ownedTxOuts.push({
+        console.log(`[fog]     ✓ OWNED subaddr=${scanResult.subaddress_index}, value=${Number(scanResult.value) / 1e12} MOB`)
+        owned.push({
           globalIndex: scanResult.global_index.toString(),
           blockIndex: scanResult.block_index.toString(),
           value: BigInt(scanResult.value),
           tokenId: scanResult.token_id != null ? BigInt(scanResult.token_id) : 0n,
           keyImage: new Uint8Array(scanResult.key_image),
+          subaddressIndex: scanResult.subaddress_index ?? 0,
           spent: false,
         })
       }
@@ -300,45 +210,244 @@ export async function syncFogBalance(
     }
   }
 
-  // Phase 5: Check key images to determine spent status
-  if (ownedTxOuts.length > 0) {
-    onProgress?.({ phase: 'checking-key-images', detail: `${ownedTxOuts.length} key image(s)` })
+  return owned
+}
 
-    try {
-      const keyImageConn = fogKeyImageConn()
-      const keyImages = ownedTxOuts.map(txo => txo.keyImage)
-      const checkRequest = encodeCheckKeyImagesRequest(keyImages)
+// ── Core: check key images for spent status ──
 
-      const checkResponseBytes = await keyImageConn.encryptedCall(
-        `${PATH_PREFIX}${PATHS.fogKeyImageCheck}`,
-        checkRequest,
-        new Uint8Array(0),
-        queryOpts,
-      )
-      const checkResponse = decodeCheckKeyImagesResponse(checkResponseBytes)
+async function checkKeyImages(
+  txOuts: OwnedTxOut[],
+  signal?: AbortSignal,
+): Promise<void> {
+  if (txOuts.length === 0) return
 
-      // Match results back to owned TxOuts
-      for (let i = 0; i < checkResponse.results.length && i < ownedTxOuts.length; i++) {
-        if (checkResponse.results[i].status === 'Spent') {
-          ownedTxOuts[i].spent = true
-        }
+  try {
+    const conn = fogKeyImageConn()
+    const keyImages = txOuts.map(txo => txo.keyImage)
+    const checkRequest = encodeCheckKeyImagesRequest(keyImages)
+
+    const responseBytes = await conn.encryptedCall(
+      `${PATH_PREFIX}${PATHS.fogKeyImageCheck}`,
+      checkRequest,
+      new Uint8Array(0),
+      { timeoutMs: QUERY_TIMEOUT_MS, signal },
+    )
+    const checkResponse = decodeCheckKeyImagesResponse(responseBytes)
+
+    for (let i = 0; i < checkResponse.results.length && i < txOuts.length; i++) {
+      const status = checkResponse.results[i].status
+      const spentAt = checkResponse.results[i].spentAt
+      console.log(`[fog] keyImage[${i}]: ${toHex(txOuts[i].keyImage).slice(0, 16)}.., status=${status}, spentAt=${spentAt}`)
+      if (status === 'Spent') {
+        txOuts[i].spent = true
       }
-    } catch (err) {
-      console.warn('[fog] Key image check failed, treating all as unspent:', err)
+    }
+  } catch (err) {
+    console.warn('[fog] Key image check failed, treating all as unspent:', err)
+  }
+}
+
+// ── Main: two-phase fog sync (matches MC reference polling.rs) ──
+
+/**
+ * Full fog balance sync with progressive results.
+ *
+ * Uses MC's exponential search loop:
+ *   Round 1: 1 key/RNG → Round 2: 2 keys/RNG → Round 3: 4 keys/RNG → ...
+ *   Cap at 500/num_live_rngs. Dead RNGs drop out. Loop until all dead.
+ *
+ * @param onResult Called after each round with cumulative owned TxOuts (unspent-checked).
+ *                 The UI can display a running balance using this.
+ */
+export async function syncFogBalance(
+  account: WalletAccountKey,
+  onProgress?: (progress: FogSyncProgress) => void,
+  signal?: AbortSignal,
+  onResult?: (partial: FogSyncResult) => void,
+): Promise<FogSyncResult> {
+  const viewKey = account.view_private_key
+  const spendKey = account.spend_private_key
+
+  // ─── Phase 1: Empty query → get RNG records ───
+  onProgress?.({ phase: 'attesting' })
+  onProgress?.({ phase: 'querying-rng' })
+
+  const initResponse = await fogViewQuery([], 0, 0, signal)
+
+  const decommissionedIds = new Set(
+    (initResponse.decommissionedIngestInvocations ?? []).map(d => d.ingestInvocationId),
+  )
+
+  console.log(`[fog][P1] RNG records: ${initResponse.rngRecords.length}, ` +
+    `highestProcessedBlock: ${initResponse.highestProcessedBlock}, ` +
+    `decommissioned: ${decommissionedIds.size}, ` +
+    `nextEvent: ${initResponse.nextStartFromUserEventId}`)
+
+  if (initResponse.rngRecords.length === 0) {
+    console.warn('[fog] 0 RNG records — account has never received via fog')
+    onProgress?.({ phase: 'done' })
+    return { ownedTxOuts: [], totalBalance: 0n, highestProcessedBlock: initResponse.highestProcessedBlock, syncedAt: Date.now() }
+  }
+
+  // ─── Build RNG cursors, separating active from decommissioned ───
+  const activeCursors: RngCursor[] = []
+  const decommissionedCursors: RngCursor[] = []
+
+  for (const rng of initResponse.rngRecords) {
+    if (rng.version !== 0) continue
+    const cursor: RngCursor = { record: rng, nextIndex: 0n, dead: false }
+    if (decommissionedIds.has(rng.ingestInvocationId)) {
+      decommissionedCursors.push(cursor)
+    } else {
+      activeCursors.push(cursor)
     }
   }
 
-  // Phase 6: Sum unspent MOB (token_id = 0)
-  const totalBalance = ownedTxOuts
+  console.log(`[fog][P1] Active RNGs: ${activeCursors.length}, Decommissioned RNGs: ${decommissionedCursors.length}`)
+
+  // ─── Phase 2: Exponential search loop (active first, then decommissioned) ───
+  const allOwnedTxOuts: OwnedTxOut[] = []
+  let highestProcessedBlock = initResponse.highestProcessedBlock
+
+  // Active first for fast balance, then scan decommissioned for history
+  const rngBatches: { cursors: RngCursor[]; label: string }[] = []
+  if (activeCursors.length > 0) {
+    rngBatches.push({ cursors: activeCursors, label: 'active' })
+  }
+  if (decommissionedCursors.length > 0) {
+    rngBatches.push({ cursors: decommissionedCursors, label: 'decommissioned' })
+  }
+
+  for (const batch of rngBatches) {
+    const { cursors, label } = batch
+    let requestMultiplier = 1
+    let round = 0
+
+    onProgress?.({ phase: 'querying-txos', detail: `${label}: ${cursors.length} RNG(s)` })
+    console.log(`[fog][P2] Starting exponential search for ${label} RNGs (${cursors.length})`)
+
+    while (true) {
+      const liveCursors = cursors.filter(c => !c.dead)
+      if (liveCursors.length === 0) break
+
+      // Cap at 500 search keys total, spread across live RNGs
+      const maxMultiplier = Math.max(Math.floor(MAX_SEARCH_KEYS_PER_QUERY / liveCursors.length), 1)
+      requestMultiplier = Math.min(requestMultiplier, maxMultiplier)
+
+      round++
+      console.log(`[fog][P2] ${label} round ${round}: ${liveCursors.length} live RNGs, ${requestMultiplier} keys/RNG`)
+
+      // Derive search keys for all live RNGs at their current cursor position
+      onProgress?.({ phase: 'deriving-keys', detail: `${label} round ${round}` })
+      const searchKeys: Uint8Array[] = []
+      const keyToCursor = new Map<string, { cursor: RngCursor; offset: number }>()
+
+      for (const cursor of liveCursors) {
+        const result = await deriveKexRngSearchKeys(
+          viewKey, spendKey,
+          cursor.record.pubkey,
+          cursor.nextIndex,
+          requestMultiplier,
+        )
+
+        for (let ki = 0; ki < result.search_keys.length; ki++) {
+          const key = new Uint8Array(result.search_keys[ki])
+          searchKeys.push(key)
+          keyToCursor.set(toHex(key), { cursor, offset: ki })
+        }
+      }
+
+      if (searchKeys.length === 0) break
+
+      // Query fog-view
+      onProgress?.({ phase: 'querying-txos', detail: `${label} round ${round}: ${searchKeys.length} keys` })
+      const queryResponse = await fogViewQuery(
+        searchKeys,
+        0x7FFFFFFF, // i64::MAX — we don't want more user events, just search results
+        Number(highestProcessedBlock),
+        signal,
+      )
+
+      // Track highest processed block (min across all responses, per MC spec)
+      if (BigInt(queryResponse.highestProcessedBlock) < BigInt(highestProcessedBlock)) {
+        highestProcessedBlock = queryResponse.highestProcessedBlock
+      }
+
+      // Count found results per cursor to determine advancement
+      const foundPerCursor = new Map<RngCursor, number>()
+      const foundResults = queryResponse.fixedTxOutSearchResults.filter(
+        (r: FixedTxOutSearchResult) => r.resultCode === 1,
+      )
+
+      console.log(`[fog][P2]   ${label} round ${round}: ${foundResults.length} Found / ${queryResponse.fixedTxOutSearchResults.length} total`)
+
+      // Map found results back to their cursors
+      for (const result of foundResults) {
+        const entry = keyToCursor.get(result.searchKey)
+        if (entry) {
+          foundPerCursor.set(entry.cursor, (foundPerCursor.get(entry.cursor) ?? 0) + 1)
+        }
+      }
+
+      // Process found TxOuts
+      if (foundResults.length > 0) {
+        onProgress?.({ phase: 'scanning', detail: `${foundResults.length} TxOut(s)` })
+        const newOwned = await processFoundResults(foundResults, viewKey, spendKey)
+        if (newOwned.length > 0) {
+          allOwnedTxOuts.push(...newOwned)
+
+          // Check key images and emit progressive result
+          onProgress?.({ phase: 'checking-key-images', detail: `${newOwned.length} new` })
+          await checkKeyImages(newOwned, signal)
+
+          const totalBalance = allOwnedTxOuts
+            .filter(txo => !txo.spent && txo.tokenId === 0n)
+            .reduce((sum, txo) => sum + txo.value, 0n)
+
+          console.log(`[fog][P2]   Running balance: ${Number(totalBalance) / 1e12} MOB (${allOwnedTxOuts.length} owned, ${allOwnedTxOuts.filter(t => t.spent).length} spent)`)
+
+          onResult?.({
+            ownedTxOuts: [...allOwnedTxOuts],
+            totalBalance,
+            highestProcessedBlock,
+            syncedAt: Date.now(),
+          })
+        }
+      }
+
+      // Advance cursors past found results; mark dead if not fully advanced
+      for (const cursor of liveCursors) {
+        const foundCount = foundPerCursor.get(cursor) ?? 0
+        cursor.nextIndex += BigInt(foundCount)
+        if (foundCount < requestMultiplier) {
+          cursor.dead = true
+          console.log(`[fog][P2]   RNG ${cursor.record.ingestInvocationId} dead (found ${foundCount}/${requestMultiplier})`)
+        }
+      }
+
+      // Double multiplier for next round (exponential growth)
+      requestMultiplier = Math.min(requestMultiplier * 2, maxMultiplier)
+    }
+
+    console.log(`[fog][P2] ${label} scan complete after ${round} round(s)`)
+  }
+
+  // ─── Final result ───
+  const totalBalance = allOwnedTxOuts
     .filter(txo => !txo.spent && txo.tokenId === 0n)
     .reduce((sum, txo) => sum + txo.value, 0n)
+
+  console.log(`[fog] FINAL: ${allOwnedTxOuts.length} owned TxOuts, ${Number(totalBalance) / 1e12} MOB`)
+  for (const txo of allOwnedTxOuts) {
+    console.log(`[fog]   idx=${txo.globalIndex}, ${Number(txo.value) / 1e12} MOB, subaddr=${txo.subaddressIndex}, spent=${txo.spent}`)
+  }
 
   onProgress?.({ phase: 'done' })
 
   return {
-    ownedTxOuts,
+    ownedTxOuts: allOwnedTxOuts,
     totalBalance,
-    highestProcessedBlock: queryResponse.highestProcessedBlock,
+    highestProcessedBlock,
     syncedAt: Date.now(),
   }
 }

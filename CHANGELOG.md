@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Added — Transaction Sending
+
+- `frontend/src/services/consensusClient.ts` — attested Consensus client: network status, Merkle proofs, ring member sampling, fog report fetching, and `proposeTx` submission via Noise NX session.
+- `frontend/src/services/txBuilder.ts` — `sendTransaction()` orchestrator: coin selection (largest-first), ring construction (11 mixins), WASM `buildTransaction` call, and consensus submission with verbose `[txSend]` logging.
+- `crates/wallet-core/src/prost_verify.rs` — ring signature and Bulletproof validation helpers (prost-based).
+- WASM `buildTransaction`, `decodeB58Address`, `deriveSubaddress` exports in `wasm/index.ts`.
+- Full MLSAG ring-signature and Bulletproof range-proof generation in Rust `crates/wallet-core/src/transaction.rs`.
+
+### Changed — Fog Sync Pagination (MC Reference Algorithm)
+
+- **Rewrote `fogClient.ts`** to match MobileCoin's reference `polling.rs` exponential-search algorithm:
+  - Two-phase approach: active RNGs first (fast initial balance), then decommissioned RNGs (historical completeness).
+  - Exponential key doubling per round (1→2→4→8…), capped at `500 / liveCursors` (gRPC message size limit).
+  - Dead-RNG detection: if an RNG returns fewer results than requested, it stops being queried.
+  - Previous flat `SEARCH_KEY_BATCH_SIZE=5` caused balance invisibility when an RNG had 6+ TxOuts (root cause of the missing 9.97 MOB change output).
+- `balanceStore.ts` now accepts an `onResult` progressive callback, updating the UI with running balance after each exponential round instead of waiting for full scan completion.
+- `fogClient.ts.bak` preserved as reference of the pre-rewrite version.
+
+### Fixed — Transaction Wire Format
+
+- `Range.from`/`Range.to` and `TxOutMembershipProof` fields now encode as `uint64` (varint wire type 0), not `fixed64` (wire type 1). Mismatched wire types caused silent consensus rejection.
+- Fog hint size corrected to 84 bytes (82 encrypted + 2 magic bytes), not 82.
+- `e_memo` field omitted when empty (not all TxOuts carry encrypted memos).
+- `ProposeTxResponse` from consensus is plaintext (not AES-encrypted) — use `encryptedCallPlaintextResponse()`.
+
+### Added — Debug Logging
+
+- `[fog][P1]`/`[fog][P2]` phase-prefixed logging in `fogClient.ts` for RNG record counts, per-round key generation, Found/NotFound tallies, running balance, and dead-RNG detection.
+- `[scan]` logging in WASM `scanning.rs` with `to_hex()` helper: shared_secret, candidate_D, each D_i with MATCH indicator.
+- `[txSend]` logging in `txBuilder.ts`: recipient decode, coin selection detail, network status, fog ingest pubkey, submit result.
+
 ### Added — Fog Balance Sync
 
 - End-to-end Fog balance sync pipeline: attest → query RNG records → derive KexRng search keys → query TxOuts → decrypt VersionedCryptoBox → decode TxOutRecord → scan for ownership → check key images → sum unspent balance.
