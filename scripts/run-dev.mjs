@@ -222,25 +222,26 @@ async function runBuild() {
   return status.code
 }
 
-function startServices() {
+function startProxy() {
+  const proxyService = spawnCommand('proxy', dockerCommand, ['compose', 'up', '--build'], {
+    cwd: proxyDir,
+    detached: !isWindows,
+  })
+  services.push(proxyService)
+  watchService(proxyService)
+}
+
+function startFrontend() {
   const frontendCommand = existsSync(viteBinary)
     ? { command: viteBinary, args: [] }
     : { command: pnpmCommand, args: ['--dir', frontendDir, 'dev'] }
 
-  services = [
-    spawnCommand('proxy', dockerCommand, ['compose', 'up', '--build'], {
-      cwd: proxyDir,
-      detached: !isWindows,
-    }),
-    spawnCommand('frontend', frontendCommand.command, frontendCommand.args, {
-      cwd: frontendDir,
-      detached: !isWindows,
-    }),
-  ]
-
-  for (const service of services) {
-    watchService(service)
-  }
+  const frontendService = spawnCommand('frontend', frontendCommand.command, frontendCommand.args, {
+    cwd: frontendDir,
+    detached: !isWindows,
+  })
+  services.push(frontendService)
+  watchService(frontendService)
 }
 
 function installSignalHandlers() {
@@ -254,6 +255,8 @@ function installSignalHandlers() {
 async function main() {
   installSignalHandlers()
 
+  startProxy()
+
   if (!process.argv.includes('--skip-wasm')) {
     const buildExitCode = await runBuild()
     if (buildExitCode !== 0) {
@@ -265,7 +268,7 @@ async function main() {
     }
   }
 
-  startServices()
+  startFrontend()
   const finalExitCode = await stopRequested
   process.exit(finalExitCode)
 }

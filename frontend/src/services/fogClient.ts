@@ -47,7 +47,7 @@ const PATHS = {
 } as const
 
 // How many search keys to generate per RNG record per batch
-const SEARCH_KEY_BATCH_SIZE = 50
+const SEARCH_KEY_BATCH_SIZE = 5
 
 // Max subaddresses to scan for ownership (0 = default subaddress)
 const NUM_SUBADDRESSES = 2n
