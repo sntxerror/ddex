@@ -32,6 +32,10 @@
 - Replaced the root `pnpm dev` concurrency wrapper with `scripts/run-dev.mjs` so proxy/frontend startup and shutdown are coordinated more gracefully.
 - Added a `stop_grace_period` to the proxy compose service to reduce noisy shutdown behavior during local dev restarts.
 - Refined wallet UX copy and layouts across onboarding, profile, vault, and settings to emphasize security status, clearer labels, and simpler flows.
+- Tightened the authenticated app shell and settings layouts around a shared `56rem` desktop width, including header/footer framing and edge-aligned header controls after removing the title.
+- Reworked settings, warning, receive, and recovery phrase screens to use more compact wallet-first layouts, quieter feedback rows, and a consistent destructive-state visual treatment.
+- Merged PIN management into the Privacy & Security section, standardized onboarding action button sizing, and refreshed onboarding copy to emphasize zero-custody messaging.
+- Recovery phrase presentation now uses numbered word layouts for readability while keeping clipboard copies normalized to plain space-separated mnemonic text.
 
 ### Added
 
@@ -49,6 +53,9 @@
 - New wallet product screens for welcome, create/import wallet, recovery backup, PIN setup, biometric step, onboarding completion, unlock, vault, transfer/receive, profile, and settings.
 - Security-oriented state and flows via new stores and hooks (`keystoreStore`, `onboardingStore`, `uiStore`, `networkStore`, `transferStore`, `walletStore`, `useSecurityScore`, `useAutoLock`, `useAppBootstrap`).
 - Reusable wallet UI primitives including `BottomTabBar`, `QuickActions`, `SecurityScoreCard`, and `WarningBanner`.
+- Shared frontend helpers for secure UX polish, including a reusable `PinInputField`, `RecoveryPhraseBlock`, and `useCopyFeedback` clipboard tooltip flow.
+- A dedicated onboarding backup verification step at `/onboard/backup-check` that asks the user to confirm random recovery phrase words before finishing setup.
+- Persisted hidden-balance and biometric-preference state so vault privacy/security choices survive across app restarts.
 
 ### Removed
 
@@ -61,6 +68,9 @@
 - Onboarding continuity issues so re-entry from security reminders routes users through incomplete steps more reliably.
 - Profile and onboarding rendering regressions introduced during recent UI reshaping (including JSX/layout and theme consistency issues).
 - Minor frontend copy and settings polish regressions addressed in follow-up commits.
+- Backup verification routing now remains resumable after dismissing onboarding once, preventing users from getting stuck before completing recovery phrase confirmation.
+- Wallet settings no longer surface routine keystore/session success strings in the feedback row, reducing noisy status text like session-duration and encrypted-device notices.
+- Header action alignment regressions after removing the app title and several input/copy-control consistency issues across unlock, onboarding, and settings flows.
 
 ### Notes
 
