@@ -55,6 +55,7 @@ export const useKeystoreStore = create<KeystoreState>((set) => ({
       const storedVault = await saveWalletKeystore(mnemonic, pin)
 
       useOnboardingStore.getState().completePassphrase()
+      sessionStorage.removeItem('ddex-temp-mnemonic')
       set({ lastUnlockAt: Date.now(), status: 'ready', storedVault, working: false })
       useWalletStore.getState().setFeedback('Encrypted wallet with PIN lock saved locally on this device.')
       return true

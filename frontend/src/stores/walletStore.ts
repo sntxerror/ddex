@@ -10,6 +10,8 @@ import { create } from 'zustand'
 import { FOG_CONFIG } from '../config'
 import { useBalanceStore } from './balanceStore'
 
+const SESSION_MNEMONIC_KEY = 'ddex-temp-mnemonic'
+
 export type WasmStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 interface DeriveWalletOptions {
@@ -29,6 +31,7 @@ interface WalletState {
   createWallet: () => Promise<boolean>
   deriveWallet: (mnemonic: string, options?: DeriveWalletOptions) => Promise<boolean>
   initializeWasm: () => Promise<void>
+  restoreSession: () => Promise<boolean>
   setFeedback: (message: string) => void
   setMnemonicDraft: (value: string) => void
 }
@@ -109,6 +112,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         mnemonicDraft: normalizedMnemonic,
       })
 
+      sessionStorage.setItem(SESSION_MNEMONIC_KEY, normalizedMnemonic)
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -134,6 +138,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   clearWallet(message) {
+    sessionStorage.removeItem(SESSION_MNEMONIC_KEY)
     useBalanceStore.getState().reset()
     set({
       account: null,
@@ -143,6 +148,14 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       mnemonic: '',
       mnemonicDraft: '',
     })
+  },
+
+  async restoreSession() {
+    const { address } = get()
+    if (address) return false
+    const saved = sessionStorage.getItem(SESSION_MNEMONIC_KEY)
+    if (!saved) return false
+    return get().deriveWallet(saved, { successMessage: 'Session restored from this browser tab.' })
   },
 }))
 

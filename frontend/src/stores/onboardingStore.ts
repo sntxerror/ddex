@@ -147,7 +147,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         set({ workflowFinished: true })
       },
       markWalletPrepared(importFlow) {
-        set({ importFlow, walletPrepared: true, workflowFinished: false })
+        set({ importFlow, walletPrepared: true })
       },
       reset() {
         set(initialState)

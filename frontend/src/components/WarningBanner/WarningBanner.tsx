@@ -30,7 +30,7 @@ export function WarningBanner({
             </Text>
           </div>
           <Text className={styles.bodyText} size="sm">
-            Your wallet is considered temporary until the recovery phrase is backed up, and is not secure until PIN lock and biometrics are configured.
+            Your wallet only lives in this browser tab — closing the tab will erase it permanently. Back up your recovery phrase and set a PIN lock to keep it safe across devices and sessions.
           </Text>
         </Stack>
         {actionLabel && onAction ? (
