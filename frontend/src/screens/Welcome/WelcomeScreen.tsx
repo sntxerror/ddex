@@ -15,12 +15,12 @@ export function WelcomeScreen() {
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <FeatureCard
-          description="Recovery phrase generation and account derivation always stay inside your browser."
+          description="Recovery phrase generation and account derivation always stay inside your browser, nobody has access to it."
           icon={IconFingerprint}
           title="Zero-Knowledge"
         />
         <FeatureCard
-          description="We never touch, hold, or even see your assets. Everything always stays under your control."
+          description="We never touch, hold, or even see your transactions or assets. Everything always stays under your control."
           icon={IconBolt}
           title="Zero custody"
         />
