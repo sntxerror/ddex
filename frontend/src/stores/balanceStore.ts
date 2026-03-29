@@ -8,8 +8,99 @@ import {
 import type { WalletAccountKey } from '@ddex/wallet-core-web'
 
 const PICO_MOB = 1_000_000_000_000n
+const SESSION_BALANCE_KEY = 'ddex-balance-cache'
 
 export type BalanceSyncStatus = 'idle' | 'syncing' | 'synced' | 'error'
+
+// ── sessionStorage serialization helpers ──
+
+interface SerializedBalanceCache {
+  balancePicoMob: string
+  highestProcessedBlock: string
+  lastSyncedAt: number
+  ownedTxOuts: Array<{
+    globalIndex: string
+    blockIndex: string
+    value: string
+    tokenId: string
+    keyImage: string       // hex
+    subaddressIndex: number
+    spent: boolean
+  }>
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function fromHex(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return arr
+}
+
+function saveBalanceToSession(state: {
+  balancePicoMob: bigint
+  highestProcessedBlock: string
+  lastSyncedAt: number | null
+  ownedTxOuts: OwnedTxOut[]
+}): void {
+  if (!state.lastSyncedAt) return
+  try {
+    const data: SerializedBalanceCache = {
+      balancePicoMob: state.balancePicoMob.toString(),
+      highestProcessedBlock: state.highestProcessedBlock,
+      lastSyncedAt: state.lastSyncedAt,
+      ownedTxOuts: state.ownedTxOuts.map((t) => ({
+        globalIndex: t.globalIndex,
+        blockIndex: t.blockIndex,
+        value: t.value.toString(),
+        tokenId: t.tokenId.toString(),
+        keyImage: toHex(t.keyImage),
+        subaddressIndex: t.subaddressIndex,
+        spent: t.spent,
+      })),
+    }
+    sessionStorage.setItem(SESSION_BALANCE_KEY, JSON.stringify(data))
+  } catch {
+    // Best-effort — sessionStorage may be full or unavailable
+  }
+}
+
+function loadBalanceFromSession(): {
+  balancePicoMob: bigint
+  highestProcessedBlock: string
+  lastSyncedAt: number
+  ownedTxOuts: OwnedTxOut[]
+} | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_BALANCE_KEY)
+    if (!raw) return null
+    const data: SerializedBalanceCache = JSON.parse(raw)
+    return {
+      balancePicoMob: BigInt(data.balancePicoMob),
+      highestProcessedBlock: data.highestProcessedBlock,
+      lastSyncedAt: data.lastSyncedAt,
+      ownedTxOuts: data.ownedTxOuts.map((t) => ({
+        globalIndex: t.globalIndex,
+        blockIndex: t.blockIndex,
+        value: BigInt(t.value),
+        tokenId: BigInt(t.tokenId),
+        keyImage: fromHex(t.keyImage),
+        subaddressIndex: t.subaddressIndex,
+        spent: t.spent,
+      })),
+    }
+  } catch {
+    return null
+  }
+}
+
+// ── Initial state from cache ──
+
+const cached = loadBalanceFromSession()
 
 interface BalanceState {
   /** picoMOB balance (unspent MOB only) */
@@ -27,14 +118,14 @@ interface BalanceState {
 }
 
 export const useBalanceStore = create<BalanceState>((set, get) => ({
-  balancePicoMob: 0n,
-  syncStatus: 'idle',
+  balancePicoMob: cached?.balancePicoMob ?? 0n,
+  syncStatus: cached ? 'synced' : 'idle',
   syncPhase: 'done',
   syncDetail: '',
   syncError: '',
-  highestProcessedBlock: '0',
-  lastSyncedAt: null,
-  ownedTxOuts: [],
+  highestProcessedBlock: cached?.highestProcessedBlock ?? '0',
+  lastSyncedAt: cached?.lastSyncedAt ?? null,
+  ownedTxOuts: cached?.ownedTxOuts ?? [],
 
   async sync(account, signal) {
     if (get().syncStatus === 'syncing') return
@@ -62,6 +153,12 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
         syncPhase: 'done',
         syncDetail: '',
       })
+      saveBalanceToSession({
+        balancePicoMob: result.totalBalance,
+        highestProcessedBlock: result.highestProcessedBlock,
+        lastSyncedAt: result.syncedAt,
+        ownedTxOuts: result.ownedTxOuts,
+      })
     } catch (err) {
       // Abort errors are not real failures — silently reset to idle
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -83,6 +180,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
   reset() {
     resetFogConnections()
+    sessionStorage.removeItem(SESSION_BALANCE_KEY)
     set({
       balancePicoMob: 0n,
       syncStatus: 'idle',

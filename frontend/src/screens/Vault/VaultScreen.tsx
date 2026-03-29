@@ -50,7 +50,7 @@ export function VaultScreen() {
     // Check status imperatively to avoid re-trigger loops
     // (abort resets to idle → reactive dep would re-fire endlessly)
     const store = useBalanceStore.getState()
-    if (store.syncStatus !== 'idle') return
+    if (store.syncStatus === 'syncing') return
 
     const controller = new AbortController()
     store.sync(walletAccount, controller.signal)
