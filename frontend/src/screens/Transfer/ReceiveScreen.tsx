@@ -44,7 +44,11 @@ export function ReceiveScreen() {
           </Stack>
 
           <div className={styles.receiveQrWrap}>
-            <QRCodeSVG bgColor="transparent" fgColor="currentColor" includeMargin size={220} style={{ color: 'var(--ddex-text-primary)', maxWidth: '100%', height: 'auto' }} value={address || 'ddex'} />
+            {address ? (
+              <QRCodeSVG bgColor="#ffffff" fgColor="#000000" includeMargin level="M" size={220} style={{ maxWidth: '100%', height: 'auto', borderRadius: '1rem' }} value={address} />
+            ) : (
+              <Text c="dimmed" size="sm">Derive a wallet to generate QR code</Text>
+            )}
           </div>
 
           <Stack align="center" className={styles.receiveMeta} gap="xs">

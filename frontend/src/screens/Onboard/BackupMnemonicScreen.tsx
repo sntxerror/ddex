@@ -3,7 +3,7 @@ import { IconInfoCircle } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { RecoveryPhraseBlock } from '../../components/RecoveryPhraseBlock/RecoveryPhraseBlock'
-import { useOnboardingStore } from '../../stores/onboardingStore'
+import { getNextIncompleteStepFromCurrent, useOnboardingStore } from '../../stores/onboardingStore'
 import { useWalletStore } from '../../stores/walletStore'
 import actionStyles from './OnboardActions.module.css'
 
@@ -45,6 +45,7 @@ export function BackupMnemonicScreen() {
           className={actionStyles.actionButton}
           onClick={() => {
             skipMnemonicBackup()
+            navigate(getNextIncompleteStepFromCurrent('/onboard/backup', useOnboardingStore.getState()))
           }}
           radius="xl"
           variant="default"

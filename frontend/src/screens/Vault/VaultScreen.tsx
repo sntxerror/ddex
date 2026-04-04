@@ -2,19 +2,12 @@ import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, ThemeIcon } from 
 import { IconEye, IconEyeOff, IconRefresh, IconWaveSquare } from '@tabler/icons-react'
 import { QuickActions } from '../../components/QuickActions/QuickActions'
 import { useKeystoreStore } from '../../stores/keystoreStore'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useUiStore } from '../../stores/uiStore'
 import { useWalletStore } from '../../stores/walletStore'
 import { useBalanceStore, formatMob } from '../../stores/balanceStore'
+import { useTxHistoryStore, formatTxAmount, txStatusBadge, txTitle } from '../../stores/txHistoryStore'
 import styles from './VaultScreen.module.css'
-
-const activity = [
-  { amount: '+12.00 MOB', badge: 'CONFIDENTIAL', title: 'Fog-Masked Receive', when: '2m ago' },
-  { amount: '-4.50 MOB', badge: 'VERIFIED', title: 'Outbound Transfer', when: '19m ago' },
-  { amount: '+1.28 MOB', badge: 'CONFIDENTIAL', title: 'Inbound Settlement', when: 'Yesterday' },
-  { amount: '-0.72 MOB', badge: 'VERIFIED', title: 'Fee Settlement', when: '2d ago' },
-  { amount: '+8.16 MOB', badge: 'CONFIDENTIAL', title: 'Private Receive', when: '4d ago' },
-] as const
 
 export function VaultScreen() {
   const storedVault = useKeystoreStore((state) => state.storedVault)
@@ -28,6 +21,7 @@ export function VaultScreen() {
   const balanceSyncPhase = useBalanceStore((state) => state.syncPhase)
   const balanceSyncError = useBalanceStore((state) => state.syncError)
   const syncBalance = useBalanceStore((state) => state.sync)
+  const txRecords = useTxHistoryStore((state) => state.records)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -76,10 +70,41 @@ export function VaultScreen() {
     }
   }, [walletAccount])
 
-  const visibleActivity = activity.slice(0, 3)
+  const [expanded, setExpanded] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(5)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const PAGE_SIZE = 10
+
+  const visibleHistory = expanded ? txRecords.slice(0, visibleCount) : txRecords.slice(0, 5)
+  const hasMore = expanded && visibleCount < txRecords.length
   const balanceDisplay = formatMob(balancePicoMob)
-  const balanceText = amountsHidden ? '***.** MOB' : `${balanceDisplay} MOB`
-  const formatActivityAmount = (amount: string) => (amountsHidden ? '***.** MOB' : amount)
+  const balanceText = amountsHidden ? '***.*** MOB' : `${balanceDisplay} MOB`
+
+  // IntersectionObserver for progressive loading when scrolling
+  const handleIntersect = useCallback((entries: IntersectionObserverEntry[]) => {
+    if (entries[0]?.isIntersecting) {
+      setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, txRecords.length))
+    }
+  }, [txRecords.length])
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !expanded || !hasMore) return
+
+    const observer = new IntersectionObserver(handleIntersect, { threshold: 0.1 })
+    observer.observe(sentinel)
+    return () => { observer.disconnect() }
+  }, [expanded, hasMore, handleIntersect])
+
+  const handleShowAll = () => {
+    setExpanded(true)
+    setVisibleCount(Math.min(txRecords.length, PAGE_SIZE + 5))
+  }
+
+  const handleCollapse = () => {
+    setExpanded(false)
+    setVisibleCount(5)
+  }
 
   const handleSyncBalance = () => {
     if (walletAccount && balanceSyncStatus !== 'syncing') {
@@ -148,20 +173,34 @@ export function VaultScreen() {
             <ThemeIcon className={styles.historyIcon} color="teal" radius="xl" variant="light"><IconWaveSquare size={18} /></ThemeIcon>
           </Group>
           <div className={styles.historyList}>
-            {visibleActivity.map((entry) => (
-              <div className={styles.historyItem} key={`${entry.title}-${entry.when}`}>
+            {visibleHistory.length === 0 && (
+              <Text c="dimmed" size="sm" ta="center" py="md">
+                {balanceSyncStatus === 'syncing' ? 'Scanning fog for transactions…' : 'No transactions yet.'}
+              </Text>
+            )}
+            {visibleHistory.map((record) => (
+              <div className={styles.historyItem} key={record.id}>
                 <Stack className={styles.historyMeta} gap={2}>
-                  <Text className={styles.historyTitle} fw={600}>{entry.title}</Text>
-                  <Text c="dimmed" size="sm">{entry.when}</Text>
+                  <Text className={styles.historyTitle}>{txTitle(record)}</Text>
                 </Stack>
                 <Stack align="flex-end" className={styles.historyAmount} gap={4}>
-                  <Text className={styles.historyValue} fw={800}>{formatActivityAmount(entry.amount)}</Text>
-                  <Badge color="gray" radius="xl" variant="light">{entry.badge}</Badge>
+                  <Text className={styles.historyValue} fw={800}>{amountsHidden ? '***.*** MOB' : `${formatTxAmount(record)} MOB`}</Text>
+                  <Badge color={record.status === 'pending' ? 'yellow' : record.status === 'expired' ? 'red' : record.senderAddressHash ? 'teal' : record.direction === 'sent' ? 'blue' : 'gray'} radius="xl" variant="light">{txStatusBadge(record)}</Badge>
                 </Stack>
               </div>
             ))}
+            {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
           </div>
-          <Button className={styles.showAllButton} disabled radius="xl" variant="subtle">Show all</Button>
+          {!expanded && txRecords.length > 5 && (
+            <Button className={styles.showAllButton} onClick={handleShowAll} radius="xl" variant="subtle">
+              Show all ({txRecords.length})
+            </Button>
+          )}
+          {expanded && (
+            <Button className={styles.showAllButton} onClick={handleCollapse} radius="xl" variant="subtle">
+              {hasMore ? `Showing ${visibleCount} of ${txRecords.length}` : 'Collapse'}
+            </Button>
+          )}
         </Stack>
       </Paper>
     </Stack>

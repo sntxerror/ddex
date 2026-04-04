@@ -6,6 +6,7 @@ import {
   type FogSyncProgress,
 } from '../services/fogClient'
 import type { WalletAccountKey } from '@ddex/wallet-core-web'
+import { useTxHistoryStore } from './txHistoryStore'
 
 const PICO_MOB = 1_000_000_000_000n
 const SESSION_BALANCE_KEY = 'ddex-balance-cache'
@@ -21,11 +22,16 @@ interface SerializedBalanceCache {
   ownedTxOuts: Array<{
     globalIndex: string
     blockIndex: string
+    timestamp?: number
     value: string
     tokenId: string
     keyImage: string       // hex
     subaddressIndex: number
     spent: boolean
+    spentAtBlock?: string
+    memoType?: number
+    senderAddressHash?: string   // hex
+    paymentRequestId?: string
   }>
 }
 
@@ -56,11 +62,18 @@ function saveBalanceToSession(state: {
       ownedTxOuts: state.ownedTxOuts.map((t) => ({
         globalIndex: t.globalIndex,
         blockIndex: t.blockIndex,
+        timestamp: t.timestamp,
         value: t.value.toString(),
         tokenId: t.tokenId.toString(),
         keyImage: toHex(t.keyImage),
         subaddressIndex: t.subaddressIndex,
         spent: t.spent,
+        spentAtBlock: t.spentAtBlock,
+        memoType: t.memo?.memo_type,
+        senderAddressHash: t.memo?.sender_address_hash
+          ? toHex(new Uint8Array(t.memo.sender_address_hash))
+          : undefined,
+        paymentRequestId: t.memo?.payment_request_id,
       })),
     }
     sessionStorage.setItem(SESSION_BALANCE_KEY, JSON.stringify(data))
@@ -86,11 +99,22 @@ function loadBalanceFromSession(): {
       ownedTxOuts: data.ownedTxOuts.map((t) => ({
         globalIndex: t.globalIndex,
         blockIndex: t.blockIndex,
+        timestamp: t.timestamp ?? 0,
         value: BigInt(t.value),
         tokenId: BigInt(t.tokenId),
         keyImage: fromHex(t.keyImage),
         subaddressIndex: t.subaddressIndex,
         spent: t.spent,
+        spentAtBlock: t.spentAtBlock ?? '0',
+        memo: t.memoType != null
+          ? {
+              memo_type: t.memoType,
+              sender_address_hash: t.senderAddressHash
+                ? Array.from(fromHex(t.senderAddressHash))
+                : undefined,
+              payment_request_id: t.paymentRequestId,
+            }
+          : null,
       })),
     }
   } catch {
@@ -142,6 +166,8 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
           highestProcessedBlock: partial.highestProcessedBlock,
           ownedTxOuts: partial.ownedTxOuts,
         })
+        // Record discovered TxOuts as received transactions
+        useTxHistoryStore.getState().recordReceivedTxOuts(partial.ownedTxOuts)
       })
 
       set({
@@ -153,6 +179,8 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
         syncPhase: 'done',
         syncDetail: '',
       })
+      // Final reconcile of all owned TxOuts into transaction history
+      useTxHistoryStore.getState().recordReceivedTxOuts(result.ownedTxOuts)
       saveBalanceToSession({
         balancePicoMob: result.totalBalance,
         highestProcessedBlock: result.highestProcessedBlock,
@@ -194,10 +222,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   },
 }))
 
-/** Format picoMOB to human-readable MOB string */
+/** Format picoMOB to human-readable MOB string (3 decimal places) */
 export function formatMob(picoMob: bigint): string {
   const whole = picoMob / PICO_MOB
   const frac = picoMob % PICO_MOB
-  const fracStr = frac.toString().padStart(12, '0').slice(0, 2)
+  const fracStr = frac.toString().padStart(12, '0').slice(0, 3)
   return `${whole}.${fracStr}`
 }

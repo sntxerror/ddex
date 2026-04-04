@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { sendTransaction, type TxBuildPhase, type SendResult } from '../services/txBuilder'
 import { useWalletStore } from './walletStore'
 import { useBalanceStore } from './balanceStore'
+import { useTxHistoryStore } from './txHistoryStore'
 
 const PICO_MOB = 1_000_000_000_000n
 
@@ -117,6 +118,8 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     )
 
     if (result.success) {
+      const txHash = result.txPrefixHash ? bytesToHex(result.txPrefixHash) : `sent-${Date.now()}`
+
       set({
         status: 'submitted',
         buildPhase: 'done',
@@ -124,6 +127,16 @@ export const useTransferStore = create<TransferState>((set, get) => ({
         txPrefixHash: result.txPrefixHash ? bytesToHex(result.txPrefixHash) : '',
         tombstoneBlock: result.tombstoneBlock ?? null,
         error: '',
+      })
+
+      // Record sent transaction in history
+      useTxHistoryStore.getState().recordSentTx({
+        txId: txHash,
+        amount: picoAmount,
+        fee: 400_000_000n, // MINIMUM_FEE
+        recipientB58: recipient,
+        tombstoneBlock: result.tombstoneBlock ?? 0n,
+        inputKeyImages: result.keyImages ?? [],
       })
 
       // Trigger a re-sync so spent inputs are reflected

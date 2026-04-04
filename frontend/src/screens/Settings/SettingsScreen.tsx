@@ -59,6 +59,7 @@ export function SettingsScreen() {
   const handleDeleteVault = async () => {
     setDeleteDialogOpen(false)
     await deleteVault()
+    navigate('/welcome')
   }
 
   return (

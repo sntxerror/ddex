@@ -1,6 +1,8 @@
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core'
 import { IconArrowUpRight, IconCopy, IconDownload, IconQrcode } from '@tabler/icons-react'
+import { useState } from 'react'
 import { NavLink } from 'react-router'
+import { QrScannerModal } from '../../components/QrScannerModal/QrScannerModal'
 import { useTransferStore } from '../../stores/transferStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useBalanceStore, formatMob } from '../../stores/balanceStore'
@@ -49,6 +51,7 @@ export function TransferScreen() {
   const balancePicoMob = useBalanceStore((state) => state.balancePicoMob)
   const balanceDisplay = formatMob(balancePicoMob)
 
+  const [scannerOpen, setScannerOpen] = useState(false)
   const isBusy = status === 'building' || status === 'submitting'
   const canSubmit = status === 'ready' && !isBusy
 
@@ -95,7 +98,7 @@ export function TransferScreen() {
           <div className={styles.fieldSection}>
             <div className={styles.fieldLabelRow}>
               <Text fw={700}>Amount</Text>
-              <Text className={styles.balanceMeta} size="sm">Available: {amountsHidden ? '***.** MOB' : `${balanceDisplay} MOB`}</Text>
+              <Text className={styles.balanceMeta} size="sm">Available: {amountsHidden ? '***.*** MOB' : `${balanceDisplay} MOB`}</Text>
             </div>
             <TextInput
               className={`${styles.fieldInput} ${styles.amountInput}`.trim()}
@@ -127,7 +130,7 @@ export function TransferScreen() {
                   <ActionIcon aria-label="Paste address" className={styles.addressAction} onClick={() => void pasteFromClipboard()} radius="xl" size="md" variant="subtle">
                     <IconCopy size={18} />
                   </ActionIcon>
-                  <ActionIcon aria-label="Scan QR" className={styles.addressAction} disabled radius="xl" size="md" variant="subtle">
+                  <ActionIcon aria-label="Scan QR" className={styles.addressAction} onClick={() => setScannerOpen(true)} radius="xl" size="md" variant="subtle">
                     <IconQrcode size={18} />
                   </ActionIcon>
                 </Group>
@@ -151,6 +154,13 @@ export function TransferScreen() {
           >
             {isBusy ? (buildDetail || buildPhase || 'Processing...') : 'Send MOB →'}
           </Button>
+
+          {scannerOpen && (
+            <QrScannerModal
+              onClose={() => setScannerOpen(false)}
+              onScan={(value) => setRecipient(value)}
+            />
+          )}
 
           {status === 'failed' && error && (
             <Text c="red" size="sm" ta="center">{error}</Text>

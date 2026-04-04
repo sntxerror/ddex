@@ -388,6 +388,8 @@ export interface KeyImageResult {
   keyImage: string   // hex
   status: 'Spent' | 'NotSpent' | 'Unknown'
   spentAt: string
+  /** Block timestamp in seconds since epoch (0 if unavailable) */
+  timestamp: string
 }
 
 export interface CheckKeyImagesResponse {
@@ -400,6 +402,7 @@ function decodeKeyImageResult(data: Uint8Array): KeyImageResult {
   const fields = parseFields(data)
   let keyImage = ''
   let spentAt = '0'
+  let timestamp = '0'
   let resultCode = 0
 
   for (const f of fields) {
@@ -410,6 +413,7 @@ function decodeKeyImageResult(data: Uint8Array): KeyImageResult {
       }
     }
     if (f.fieldNumber === 2 && f.wireType === 1) spentAt = (f.fixed64 ?? 0n).toString()
+    if (f.fieldNumber === 3 && f.wireType === 1) timestamp = (f.fixed64 ?? 0n).toString()
     if (f.fieldNumber === 5 && f.wireType === 5) resultCode = f.fixed32 ?? 0
   }
 
@@ -417,6 +421,7 @@ function decodeKeyImageResult(data: Uint8Array): KeyImageResult {
     keyImage,
     status: resultCode === 1 ? 'Spent' : resultCode === 2 ? 'NotSpent' : 'Unknown',
     spentAt,
+    timestamp,
   }
 }
 
@@ -652,4 +657,144 @@ export function decodeProposeTxResponse(buf: Uint8Array): ProposeTxResponse {
     if (f.fieldNumber === 4 && f.wireType === 2) errMsg = new TextDecoder().decode(f.data)
   }
   return { result, blockCount, blockVersion, errMsg }
+}
+
+// ── fog_ledger.BlockRequest / BlockResponse (for missed_block_ranges recovery) ──
+// Service: fog_ledger.FogBlockAPI/GetBlocks (non-attested, plain gRPC)
+//
+// message BlockRequest { repeated fog_common.BlockRange ranges = 1; }
+// message BlockResponse { repeated BlockData blocks = 1; uint64 num_blocks = 2; uint64 global_txo_count = 3; }
+// message BlockData { uint64 index = 1; uint64 timestamp = 2; repeated external.TxOut outputs = 3; uint64 global_txo_count = 4; }
+// message BlockRange { uint64 start_block = 1; uint64 end_block = 2; }
+
+export function encodeBlockRequest(ranges: Array<{ startBlock: string; endBlock: string }>): Uint8Array {
+  const buf: number[] = []
+  for (const range of ranges) {
+    const sub: number[] = []
+    writeUvarint(sub, 1, BigInt(range.startBlock))
+    writeUvarint(sub, 2, BigInt(range.endBlock))
+    writeLengthDelimited(buf, 1, new Uint8Array(sub))
+  }
+  return new Uint8Array(buf)
+}
+
+export interface BlockDataTxOut {
+  /** Full TxOut protobuf bytes (for view-key scanning in WASM) */
+  txOutBytes: Uint8Array
+  /** Extracted TxOut fields for our scanTxOut */
+  targetKey: number[]
+  publicKey: number[]
+  commitment: number[]
+  maskedValue: bigint
+  maskedTokenId: number[]
+  eMemoData: number[]
+}
+
+export interface BlockData {
+  index: string
+  timestamp: string
+  outputs: BlockDataTxOut[]
+  globalTxoCount: string
+}
+
+export interface BlockResponse {
+  blocks: BlockData[]
+  numBlocks: string
+  globalTxoCount: string
+}
+
+function decodeBlockDataTxOut(txOutData: Uint8Array): BlockDataTxOut {
+  const fields = parseFields(txOutData)
+  let targetKey: number[] = []
+  let publicKey: number[] = []
+  let commitment: number[] = []
+  let maskedValue = 0n
+  let maskedTokenId: number[] = []
+  let eMemoData: number[] = []
+
+  for (const f of fields) {
+    // target_key (field 2): CompressedRistretto { bytes data=1 }
+    if (f.fieldNumber === 2 && f.wireType === 2) {
+      const sub = parseFields(f.data)
+      for (const sf of sub) {
+        if (sf.fieldNumber === 1 && sf.wireType === 2) targetKey = Array.from(sf.data)
+      }
+    }
+    // public_key (field 3): CompressedRistretto { bytes data=1 }
+    if (f.fieldNumber === 3 && f.wireType === 2) {
+      const sub = parseFields(f.data)
+      for (const sf of sub) {
+        if (sf.fieldNumber === 1 && sf.wireType === 2) publicKey = Array.from(sf.data)
+      }
+    }
+    // masked_amount_v1 (field 1) or masked_amount_v2 (field 6)
+    if ((f.fieldNumber === 1 || f.fieldNumber === 6) && f.wireType === 2) {
+      const sub = parseFields(f.data)
+      for (const sf of sub) {
+        // commitment (field 1): CompressedRistretto { bytes data=1 }
+        if (sf.fieldNumber === 1 && sf.wireType === 2) {
+          const inner = parseFields(sf.data)
+          for (const isf of inner) {
+            if (isf.fieldNumber === 1 && isf.wireType === 2) commitment = Array.from(isf.data)
+          }
+        }
+        // masked_value (field 2): fixed64
+        if (sf.fieldNumber === 2 && sf.wireType === 1) maskedValue = sf.fixed64 ?? 0n
+        // masked_token_id (field 3): bytes
+        if (sf.fieldNumber === 3 && sf.wireType === 2) maskedTokenId = Array.from(sf.data)
+      }
+    }
+    // e_memo (field 5): EncryptedMemo { bytes data=1 } — 66 bytes
+    if (f.fieldNumber === 5 && f.wireType === 2) {
+      const sub = parseFields(f.data)
+      for (const sf of sub) {
+        if (sf.fieldNumber === 1 && sf.wireType === 2) eMemoData = Array.from(sf.data)
+      }
+    }
+  }
+
+  return {
+    txOutBytes: txOutData,
+    targetKey,
+    publicKey,
+    commitment,
+    maskedValue,
+    maskedTokenId,
+    eMemoData,
+  }
+}
+
+function decodeBlockData(data: Uint8Array): BlockData {
+  const fields = parseFields(data)
+  let index = '0'
+  let timestamp = '0'
+  const outputs: BlockDataTxOut[] = []
+  let globalTxoCount = '0'
+
+  for (const f of fields) {
+    if (f.fieldNumber === 1) index = (f.varint ?? 0n).toString()
+    if (f.fieldNumber === 2) timestamp = (f.varint ?? 0n).toString()
+    if (f.fieldNumber === 3 && f.wireType === 2) outputs.push(decodeBlockDataTxOut(f.data))
+    if (f.fieldNumber === 4) globalTxoCount = (f.varint ?? 0n).toString()
+  }
+
+  return { index, timestamp, outputs, globalTxoCount }
+}
+
+export function decodeBlockResponse(buf: Uint8Array): BlockResponse {
+  const fields = parseFields(buf)
+  const result: BlockResponse = {
+    blocks: [],
+    numBlocks: '0',
+    globalTxoCount: '0',
+  }
+
+  for (const f of fields) {
+    switch (f.fieldNumber) {
+      case 1: result.blocks.push(decodeBlockData(f.data)); break
+      case 2: result.numBlocks = (f.varint ?? 0n).toString(); break
+      case 3: result.globalTxoCount = (f.varint ?? 0n).toString(); break
+    }
+  }
+  return result
 }

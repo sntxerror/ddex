@@ -259,7 +259,7 @@ export async function sendTransaction(
       changeRecipient,
       tombstoneBlock,
       fogIngestPubkey,
-      0n, // paymentRequestId
+      1n, // paymentRequestId — non-zero triggers AuthenticatedSenderMemo (0x0101)
     )
 
     // 9. Submit to consensus

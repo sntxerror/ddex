@@ -2,7 +2,36 @@
 
 ## Unreleased
 
-### Added — Transaction Sending
+### Added — Transaction History & Memo Support
+
+- `frontend/src/stores/txHistoryStore.ts` — full transaction history store with localStorage persistence, direction detection, memo-aware formatting, and display helpers (`formatTxAmount`, `formatTxTimestamp`, `txStatusBadge`, `txTitle`).
+- `frontend/src/components/QrScannerModal/` — QR code scanner component for scanning wallet addresses.
+- Transaction history UI on VaultScreen with expandable list, direction-aware badges (RECEIVED/SENT/VERIFIED), and relative/calendar timestamps.
+- `KeyImageResult.timestamp` field added to `mc-proto.ts` proto decoder (field 3, fixed64).
+- `OwnedTxOut` expanded with `timestamp` (block epoch seconds), `spentAtBlock`, and `memo` (DecodedMemo) fields.
+- Block request/response encoding in `mc-proto.ts` (`encodeBlockRequest`/`decodeBlockResponse`).
+
+### Changed — Fog Sync & Display
+
+- **Dead RNG detection**: changed from 5-consecutive-miss-rounds to MC reference's immediate kill on incomplete advancement. Removed `consecutiveMissRounds` from `RngCursor`. On miss: no `nextIndex` advancement (stay-and-widen semantics).
+- **MAX_SEARCH_KEYS_PER_QUERY** reduced from 1000 to 500 (matching MC reference gRPC limit).
+- **Direction detection**: subaddressIndex 1 or memo type 0x0200 (DestinationMemo) → "Sent"; subaddressIndex 0 → "Received". Change outputs correctly identified as outgoing transactions.
+- **Sent amount calculation**: correlates inputs spent at same block minus change value to show actual outlay, not change output value. Change outputs with no correlatable inputs are hidden from history.
+- **Amount formatting**: changed from 2 to 3 decimal places everywhere (`0.001` no longer shows as `0.00`).
+- Hidden balance masks updated from `***.** MOB` to `***.*** MOB`.
+- `balanceStore.ts` serialization updated for `timestamp`, `spentAtBlock`, and `memo` fields.
+- Timestamps use fog block timestamps (seconds since epoch) when available instead of `Date.now()`.
+- Transaction labels show `"Received · from ..."` / `"Sent · to ..."` with truncated address hashes.
+- `txBuilder.ts`: `paymentRequestId` changed from 0n to 1n to enable AuthenticatedSenderMemo on outbound transactions.
+
+### Fixed — Fog Sync & History
+
+- `fogClient.ts`: missed-blocks `owned.push()` now includes `timestamp`, `spentAtBlock`, and `memo` fields.
+- `checkKeyImages` now populates `spentAtBlock` and fallback `timestamp` from `KeyImageResult`.
+- TX history cleared on wallet switch (`walletStore.deriveWallet` checks address change).
+- Clipboard copy on ReceiveScreen uses `navigator.clipboard` with textarea fallback.
+
+### Added — Transaction Sending (previous)
 
 - `frontend/src/services/consensusClient.ts` — attested Consensus client: network status, Merkle proofs, ring member sampling, fog report fetching, and `proposeTx` submission via Noise NX session.
 - `frontend/src/services/txBuilder.ts` — `sendTransaction()` orchestrator: coin selection (largest-first), ring construction (11 mixins), WASM `buildTransaction` call, and consensus submission with verbose `[txSend]` logging.
@@ -94,7 +123,7 @@
 - Stale generated frontend-side WASM glue files and copied public `.wasm` artifacts.
 - Old proof-of-concept proxy log / Game of Life app wiring from the active frontend entry path.
 
-### Fixed
+### Fixed — Onboarding & Settings
 
 - Onboarding continuity issues so re-entry from security reminders routes users through incomplete steps more reliably.
 - Profile and onboarding rendering regressions introduced during recent UI reshaping (including JSX/layout and theme consistency issues).

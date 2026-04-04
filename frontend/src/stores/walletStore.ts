@@ -9,6 +9,7 @@ import {
 import { create } from 'zustand'
 import { FOG_CONFIG } from '../config'
 import { useBalanceStore } from './balanceStore'
+import { useTxHistoryStore } from './txHistoryStore'
 
 const SESSION_MNEMONIC_KEY = 'ddex-temp-mnemonic'
 
@@ -92,6 +93,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       return false
     }
 
+    const previousAddress = get().address
     set({ account: null, address: '', feedback: '', isWorking: true })
 
     try {
@@ -102,6 +104,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         fogAuthoritySpki,
       )
       const address = await getAddressForAccount(account)
+
+      // Clear stale data from any previous wallet before setting new one
+      if (previousAddress !== address) {
+        useBalanceStore.getState().reset()
+        useTxHistoryStore.getState().reset()
+      }
 
       set({
         account,
@@ -140,6 +148,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   clearWallet(message) {
     sessionStorage.removeItem(SESSION_MNEMONIC_KEY)
     useBalanceStore.getState().reset()
+    useTxHistoryStore.getState().reset()
     set({
       account: null,
       address: '',

@@ -1,13 +1,14 @@
 import { Button, Group, Stack, Text } from '@mantine/core'
 import { useMemo, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { PinInputField } from '../../components/PinInputField/PinInputField'
 import { useKeystoreStore } from '../../stores/keystoreStore'
-import { useOnboardingStore } from '../../stores/onboardingStore'
+import { getNextIncompleteStepFromCurrent, useOnboardingStore } from '../../stores/onboardingStore'
 import { isValidWalletPin, useWalletStore } from '../../stores/walletStore'
 import actionStyles from './OnboardActions.module.css'
 
 export function CreatePassphraseScreen() {
+  const navigate = useNavigate()
   const mnemonic = useWalletStore((state) => state.mnemonic)
   const saveVault = useKeystoreStore((state) => state.saveVault)
   const working = useKeystoreStore((state) => state.working)
@@ -72,6 +73,7 @@ export function CreatePassphraseScreen() {
               className={actionStyles.actionButton}
               onClick={() => {
                 skipPassphrase()
+                navigate(getNextIncompleteStepFromCurrent('/onboard/pin', useOnboardingStore.getState()))
               }}
               radius="xl"
               type="button"
