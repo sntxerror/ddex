@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useUiStore } from '../../stores/uiStore'
 import { useWalletStore } from '../../stores/walletStore'
 import { useBalanceStore, formatMob } from '../../stores/balanceStore'
-import { useTxHistoryStore, formatTxAmount, formatTxTimestamp, txStatusBadge, txTitle } from '../../stores/txHistoryStore'
+import { useTxHistoryStore, formatTxAmount, formatTxTimestamp, txStatusBadge, txTitle, txSubtitle } from '../../stores/txHistoryStore'
 import styles from './VaultScreen.module.css'
 
 export function VaultScreen() {
@@ -182,7 +182,7 @@ export function VaultScreen() {
               <div className={styles.historyItem} key={record.id}>
                 <Stack className={styles.historyMeta} gap={2}>
                   <Text className={styles.historyTitle}>{txTitle(record)}</Text>
-                  <Text c="dimmed" size="xs">{formatTxTimestamp(record)}</Text>
+                  <Text c="dimmed" size="xs">{[formatTxTimestamp(record), txSubtitle(record)].filter(Boolean).join(' · ')}</Text>
                 </Stack>
                 <Stack align="flex-end" className={styles.historyAmount} gap={4}>
                   <Text className={styles.historyValue} fw={800}>{amountsHidden ? '***.*** MOB' : `${formatTxAmount(record)} MOB`}</Text>

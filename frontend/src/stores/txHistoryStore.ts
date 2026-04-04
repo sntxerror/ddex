@@ -338,24 +338,21 @@ export function txStatusBadge(record: TransactionRecord): string {
   return 'SENT'
 }
 
-/** Primary label — block info, truncated addresses, or status context */
+/** Primary label — block number */
 export function txTitle(record: TransactionRecord): string {
+  if (record.status === 'pending') return 'Pending…'
+  if (record.status === 'expired') return `Expired · tombstone ${record.tombstoneBlock}`
+  if (record.blockIndex) return `Block ${record.blockIndex}`
+  return record.direction === 'sent' ? 'Sent' : 'Received'
+}
+
+/** Secondary line — truncated address if available */
+export function txSubtitle(record: TransactionRecord): string {
   if (record.direction === 'sent') {
-    if (record.status === 'pending') return 'Sending…'
-    if (record.status === 'expired') return `Expired · tombstone ${record.tombstoneBlock}`
-    // For change-output-derived sends, senderAddressHash holds destination hash
-    if (record.recipientB58) {
-      return `Sent · to ${record.recipientB58.slice(0, 6)}…${record.recipientB58.slice(-4)}`
-    }
-    if (record.senderAddressHash) {
-      return `Sent · to ${record.senderAddressHash.slice(0, 8)}…`
-    }
-    return `Sent · Block ${record.blockIndex || '?'}`
+    if (record.recipientB58) return `to ${record.recipientB58.slice(0, 6)}…${record.recipientB58.slice(-4)}`
+    if (record.senderAddressHash) return `to ${record.senderAddressHash.slice(0, 8)}…`
+  } else {
+    if (record.senderAddressHash) return `from ${record.senderAddressHash.slice(0, 8)}…`
   }
-  // Received
-  if (record.senderAddressHash) {
-    return `Received · from ${record.senderAddressHash.slice(0, 8)}…`
-  }
-  if (record.blockIndex) return `Received · Block ${record.blockIndex}`
-  return 'Received'
+  return ''
 }
