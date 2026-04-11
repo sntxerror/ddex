@@ -1,0 +1,60 @@
+FROM rust:bullseye AS builder
+
+ARG GIT_REF=main
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    build-essential \
+    protobuf-compiler \
+    libprotobuf-dev \
+    cmake \
+    clang \
+    libclang-dev \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN git clone --recurse-submodules https://github.com/mobilecoinofficial/deqs.git . \
+    && git checkout "${GIT_REF}" \
+    && git submodule update --init --recursive
+
+ARG SGX_MODE=SW
+ARG IAS_MODE=DEV
+ENV SGX_MODE=${SGX_MODE}
+ENV IAS_MODE=${IAS_MODE}
+
+RUN cargo build --release --bin deqs-server
+RUN ./build-protoset
+RUN cargo build --release --bin deqs-test-cli
+
+# Runtime stage
+FROM ubuntu:22.04 AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV GRPCURL_VERSION="1.9.3"
+RUN curl --fail -sSL \
+    "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_linux_amd64.deb" \
+    -o /tmp/grpcurl.deb \
+  && dpkg -i /tmp/grpcurl.deb \
+  && rm /tmp/grpcurl.deb
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/deqs-server /usr/local/bin/deqs-server
+COPY --from=builder /app/target/release/deqs-test-cli /usr/local/bin/deqs-test-cli
+RUN mkdir /usr/local/share/deqs
+COPY --from=builder /app/deqs.protoset /usr/local/share/deqs/deqs.protoset
+
+RUN mkdir -p /data/ledger /data/db
+
+EXPOSE 7000
+EXPOSE 443
+
+ENTRYPOINT ["deqs-server"]
