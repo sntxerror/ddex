@@ -26,23 +26,33 @@ RUN cd mobilecoin && git checkout c18a291
 # Dependency fixes for: error[E0282]: type annotations needed for `Box<_>`
 RUN echo 'time = { git = "https://github.com/time-rs/time.git", tag = "v0.3.36" }' >> Cargo.toml
 
-# Deprecation fixes:
+# Fix ahash 0.7.6: E0635 unknown feature `stdsimd` on newer nightly.
+# ahash 0.7.8 fixes this by disabling stdsimd on unsupported nightlies (semver-compatible with ^0.7).
+RUN echo 'ahash = { git = "https://github.com/tkaitchuck/aHash.git", tag = "v0.7.8" }' >> Cargo.toml
+
+# Fix schnorrkel-og: Scalar::from_bits removed in curve25519-dalek v4
+# Use the uprev-curve25519-dalek branch which ports to the new API
+RUN sed -i 's|schnorrkel-og = { git = "https://github.com/mobilecoinfoundation/schnorrkel.git", rev = "b76d8c3a50671b08af0874b25b2543d3302d794d" }|schnorrkel-og = { git = "https://github.com/mobilecoinfoundation/schnorrkel.git", rev = "2863b5649ed56b6de08d55caa9c360763bf7f786" }|' Cargo.toml
+
+# Deprecation and local definitions fixes:
 # We got a fixed commit, so we're patching by line number for now.
 # The added line should be right after `#![no_std]`
 RUN sed -i '3a\#![allow(deprecated)]' mobilecoin/util/repr-bytes/src/lib.rs
 RUN sed -i '3a\#![allow(deprecated)]' mobilecoin/crypto/digestible/src/lib.rs
+RUN sed -i '49a\#![allow(deprecated)]\n#![allow(non_local_definitions)]' mobilecoin/crypto/keys/src/lib.rs
+RUN sed -i '1a\#![allow(deprecated)]' mobilecoin/crypto/hashes/src/lib.rs
+RUN sed -i '5a\#![allow(deprecated)]\n#![allow(non_local_definitions)]' mobilecoin/core/types/src/lib.rs
+RUN sed -i '7a\#![allow(non_local_definitions)]' mobilecoin/core/src/lib.rs
 
-
-RUN rm -f rust-toolchain
 
 ARG SGX_MODE=SW
 ARG IAS_MODE=DEV
 ENV SGX_MODE=${SGX_MODE}
 ENV IAS_MODE=${IAS_MODE}
 
-RUN cargo build --release --bin deqs-server
+RUN cargo +nightly-2026-01-01 build --release --bin deqs-server
 RUN ./build-protoset
-RUN cargo build --release --bin deqs-test-cli
+RUN cargo +nightly-2026-01-01 build --release --bin deqs-test-cli
 
 # Runtime stage
 FROM ubuntu:22.04 AS runtime
