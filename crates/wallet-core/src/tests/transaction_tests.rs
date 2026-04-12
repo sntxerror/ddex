@@ -1,18 +1,18 @@
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::CompressedRistretto;
+use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
 use sha2::Sha512;
 
-use crate::transaction::{
-    RingMember, Recipient, BuiltTxOut, RingMLSAG, SignedInput, BuiltTransaction,
-    build_tx_out_inner, build_destination_memo, build_authenticated_sender_memo,
-    compute_address_hash, compute_confirmation_number, encode_tx, encode_tx_out,
-    MEMO_TYPE_AUTH_SENDER_WITH_PAYMENT_REQUEST, MEMO_TYPE_DESTINATION,
-    MEMO_KEY_SALT, MEMO_DATA_LEN, SENDER_MEMO_CREDENTIAL_DOMAIN,
-};
 use crate::bulletproofs::{InnerProductProof, RangeProof};
+use crate::transaction::{
+    build_authenticated_sender_memo, build_destination_memo, build_tx_out_inner,
+    compute_address_hash, compute_confirmation_number, encode_tx, encode_tx_out, BuiltTransaction,
+    BuiltTxOut, Recipient, RingMLSAG, RingMember, SignedInput, MEMO_DATA_LEN, MEMO_KEY_SALT,
+    MEMO_TYPE_AUTH_SENDER_WITH_PAYMENT_REQUEST, MEMO_TYPE_DESTINATION,
+    SENDER_MEMO_CREDENTIAL_DOMAIN,
+};
 
 /// Build a minimal BuiltTransaction for testing encode_tx.
 fn make_test_tx() -> BuiltTransaction {
@@ -132,7 +132,8 @@ fn get_varint_field(fields: &[(u32, u32, Vec<u8>)], field_num: u32) -> u64 {
 }
 
 fn get_submessages(fields: &[(u32, u32, Vec<u8>)], field_num: u32) -> Vec<Vec<u8>> {
-    fields.iter()
+    fields
+        .iter()
         .filter(|(num, wt, _)| *num == field_num && *wt == 2)
         .map(|(_, _, data)| data.clone())
         .collect()
@@ -169,24 +170,55 @@ fn test_encode_tx_structure() {
     assert_eq!(ring_proofs[0], vec![0x12, 0x03, 0x05, 0x06, 0x07]);
 
     let tx_out_fields = decode_fields(&outputs[0]);
-    assert!(get_submessages(&tx_out_fields, 6).len() == 1, "expected masked_amount_v2");
-    assert!(get_submessages(&tx_out_fields, 2).len() == 1, "expected target_key");
-    assert!(get_submessages(&tx_out_fields, 3).len() == 1, "expected public_key");
-    assert!(get_submessages(&tx_out_fields, 4).len() == 1, "expected e_fog_hint");
-    assert!(get_submessages(&tx_out_fields, 5).len() == 1, "expected e_memo");
+    assert!(
+        get_submessages(&tx_out_fields, 6).len() == 1,
+        "expected masked_amount_v2"
+    );
+    assert!(
+        get_submessages(&tx_out_fields, 2).len() == 1,
+        "expected target_key"
+    );
+    assert!(
+        get_submessages(&tx_out_fields, 3).len() == 1,
+        "expected public_key"
+    );
+    assert!(
+        get_submessages(&tx_out_fields, 4).len() == 1,
+        "expected e_fog_hint"
+    );
+    assert!(
+        get_submessages(&tx_out_fields, 5).len() == 1,
+        "expected e_memo"
+    );
 
     let sig_fields = decode_fields(&signatures[0]);
     let ring_sigs = get_submessages(&sig_fields, 1);
     let pseudo_outputs = get_submessages(&sig_fields, 2);
     let range_proofs = get_submessages(&sig_fields, 4);
     assert_eq!(ring_sigs.len(), 1, "expected 1 RingMLSAG");
-    assert_eq!(pseudo_outputs.len(), 1, "expected 1 pseudo_output_commitment");
+    assert_eq!(
+        pseudo_outputs.len(),
+        1,
+        "expected 1 pseudo_output_commitment"
+    );
     assert_eq!(range_proofs.len(), 1, "expected range_proofs");
 
     let mlsag_fields = decode_fields(&ring_sigs[0]);
-    assert_eq!(get_submessages(&mlsag_fields, 1).len(), 1, "expected c_zero");
-    assert_eq!(get_submessages(&mlsag_fields, 2).len(), 2, "expected 2 responses");
-    assert_eq!(get_submessages(&mlsag_fields, 3).len(), 1, "expected key_image");
+    assert_eq!(
+        get_submessages(&mlsag_fields, 1).len(),
+        1,
+        "expected c_zero"
+    );
+    assert_eq!(
+        get_submessages(&mlsag_fields, 2).len(),
+        2,
+        "expected 2 responses"
+    );
+    assert_eq!(
+        get_submessages(&mlsag_fields, 3).len(),
+        1,
+        "expected key_image"
+    );
 
     assert_eq!(range_proofs[0].len(), 352);
 }
@@ -211,7 +243,8 @@ fn test_encode_tx_out_masked_value() {
     assert_eq!(masked_amount_data.len(), 1);
 
     let ma_fields = decode_fields(&masked_amount_data[0]);
-    let fixed64_fields: Vec<_> = ma_fields.iter()
+    let fixed64_fields: Vec<_> = ma_fields
+        .iter()
         .filter(|(num, wt, _)| *num == 2 && *wt == 1)
         .collect();
     assert_eq!(fixed64_fields.len(), 1);
@@ -222,12 +255,12 @@ fn test_encode_tx_out_masked_value() {
 #[test]
 fn test_build_tx_out_round_trip_scan() {
     let a = Scalar::from_bytes_mod_order([
-        1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-        17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,0
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 0,
     ]);
     let b = Scalar::from_bytes_mod_order([
-        31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,
-        15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9,
+        8, 7, 6, 5, 4, 3, 2, 1, 0,
     ]);
 
     let hs_0 = {
@@ -247,13 +280,15 @@ fn test_build_tx_out_round_trip_scan() {
         fog_report_url: String::new(),
     };
 
-    let (tx_out, _shared_secret) = build_tx_out_inner(
-        &recipient, 1_000_000_000, 0, None, None, None,
-    ).expect("build_tx_out_inner should succeed");
+    let (tx_out, _shared_secret) =
+        build_tx_out_inner(&recipient, 1_000_000_000, 0, None, None, None)
+            .expect("build_tx_out_inner should succeed");
 
     // Simulate scanning: shared_secret = a * R
-    let r_point = CompressedRistretto::from_slice(&tx_out.public_key).unwrap()
-        .decompress().unwrap();
+    let r_point = CompressedRistretto::from_slice(&tx_out.public_key)
+        .unwrap()
+        .decompress()
+        .unwrap();
     let shared_secret = (a * r_point).compress();
 
     let hs = {
@@ -264,8 +299,10 @@ fn test_build_tx_out_round_trip_scan() {
     };
 
     // candidate_D = target_key - hs*G
-    let target = CompressedRistretto::from_slice(&tx_out.target_key).unwrap()
-        .decompress().unwrap();
+    let target = CompressedRistretto::from_slice(&tx_out.target_key)
+        .unwrap()
+        .decompress()
+        .unwrap();
     let candidate_d = (target - hs * RISTRETTO_BASEPOINT_POINT).compress();
 
     assert_eq!(
@@ -284,7 +321,10 @@ fn test_build_tx_out_round_trip_scan() {
     let mut value_mask = [0u8; 8];
     hk.expand(b"mc_amount_value", &mut value_mask).unwrap();
     let unmasked_value = tx_out.masked_value ^ u64::from_le_bytes(value_mask);
-    assert_eq!(unmasked_value, 1_000_000_000, "Scanner must recover correct amount");
+    assert_eq!(
+        unmasked_value, 1_000_000_000,
+        "Scanner must recover correct amount"
+    );
 }
 
 #[test]
@@ -303,32 +343,37 @@ fn test_encode_tx_empty_fog_hint_omitted() {
     let encoded = encode_tx_out(&output);
     let fields = decode_fields(&encoded);
 
-    assert_eq!(get_submessages(&fields, 4).len(), 0, "empty e_fog_hint should be omitted");
+    assert_eq!(
+        get_submessages(&fields, 4).len(),
+        0,
+        "empty e_fog_hint should be omitted"
+    );
 }
 
 #[test]
 fn test_memo_round_trip_authenticated_sender() {
     let sender_a = Scalar::from_bytes_mod_order([
-        10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,
-        26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,0
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+        33, 34, 35, 36, 37, 38, 39, 40, 0,
     ]);
     let sender_b = Scalar::from_bytes_mod_order([
-        40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,
-        24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,0
+        40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
+        17, 16, 15, 14, 13, 12, 11, 10, 0,
     ]);
 
     let recip_a = Scalar::from_bytes_mod_order([
-        1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-        17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,0
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 0,
     ]);
     let recip_b = Scalar::from_bytes_mod_order([
-        31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,
-        15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9,
+        8, 7, 6, 5, 4, 3, 2, 1, 0,
     ]);
 
     let recip_hs_0 = {
         let mut h = Blake2b512::new();
-        h.update(b"mc_subaddress"); h.update(recip_a.as_bytes());
+        h.update(b"mc_subaddress");
+        h.update(recip_a.as_bytes());
         h.update(Scalar::from(0u64).as_bytes());
         Scalar::from_bytes_mod_order_wide(&h.finalize().into())
     };
@@ -343,24 +388,27 @@ fn test_memo_round_trip_authenticated_sender() {
 
     let sender_hs_0 = {
         let mut h = Blake2b512::new();
-        h.update(b"mc_subaddress"); h.update(sender_a.as_bytes());
+        h.update(b"mc_subaddress");
+        h.update(sender_a.as_bytes());
         h.update(Scalar::from(0u64).as_bytes());
         Scalar::from_bytes_mod_order_wide(&h.finalize().into())
     };
     let sender_d_0 = ((sender_hs_0 + sender_b) * RISTRETTO_BASEPOINT_POINT).compress();
     let sender_c_0 = (sender_a * sender_d_0.decompress().unwrap()).compress();
-    let sender_addr_hash = compute_address_hash(
-        sender_c_0.as_bytes(), sender_d_0.as_bytes(),
-    );
+    let sender_addr_hash = compute_address_hash(sender_c_0.as_bytes(), sender_d_0.as_bytes());
 
     let payment_request_id: u64 = 0xDEADBEEF_CAFE1234;
     let memo = build_authenticated_sender_memo(
-        &sender_b, &sender_addr_hash, &recipient, payment_request_id,
-    ).expect("memo construction should succeed");
+        &sender_b,
+        &sender_addr_hash,
+        &recipient,
+        payment_request_id,
+    )
+    .expect("memo construction should succeed");
 
-    let (tx_out, shared_secret) = build_tx_out_inner(
-        &recipient, 500_000_000, 0, None, None, Some(&memo),
-    ).expect("build_tx_out_inner should succeed");
+    let (tx_out, shared_secret) =
+        build_tx_out_inner(&recipient, 500_000_000, 0, None, None, Some(&memo))
+            .expect("build_tx_out_inner should succeed");
 
     // Decrypt the memo
     let memo_hk = Hkdf::<Sha512>::new(Some(MEMO_KEY_SALT), shared_secret.as_bytes());
@@ -389,7 +437,11 @@ fn test_memo_round_trip_authenticated_sender() {
         let mut mac = <Hmac<Sha512>>::new_from_slice(&hmac_key).unwrap();
         mac.update(recip_d_0.as_bytes());
         let expected: [u8; 8] = mac.finalize().into_bytes()[..8].try_into().unwrap();
-        assert_eq!(&decrypted[58..66], &expected, "HMAC must match recomputed value");
+        assert_eq!(
+            &decrypted[58..66],
+            &expected,
+            "HMAC must match recomputed value"
+        );
     }
 }
 
@@ -404,7 +456,10 @@ fn test_destination_memo() {
     assert_eq!(&memo[2..18], &addr_hash);
     assert_eq!(memo[18], 1);
     assert_eq!(u64::from_le_bytes(memo[19..27].try_into().unwrap()), fee);
-    assert_eq!(u64::from_le_bytes(memo[27..35].try_into().unwrap()), total_outlay);
+    assert_eq!(
+        u64::from_le_bytes(memo[27..35].try_into().unwrap()),
+        total_outlay
+    );
 }
 
 #[test]
@@ -416,7 +471,11 @@ fn test_confirmation_number() {
     let cn2 = compute_confirmation_number(&shared_secret, &tx_out_pub);
     assert_eq!(cn1.len(), 32);
     assert_eq!(cn1, cn2, "confirmation number must be deterministic");
-    assert_ne!(cn1, vec![0u8; 32], "confirmation number must not be all zeros");
+    assert_ne!(
+        cn1,
+        vec![0u8; 32],
+        "confirmation number must not be all zeros"
+    );
 
     let cn3 = compute_confirmation_number(&shared_secret, &vec![0x88u8; 32]);
     assert_ne!(cn1, cn3);
@@ -425,16 +484,17 @@ fn test_confirmation_number() {
 #[test]
 fn test_default_memo_backwards_compat() {
     let a = Scalar::from_bytes_mod_order([
-        1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-        17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,0
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 0,
     ]);
     let b = Scalar::from_bytes_mod_order([
-        31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,
-        15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
+        31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9,
+        8, 7, 6, 5, 4, 3, 2, 1, 0,
     ]);
     let hs_0 = {
         let mut h = Blake2b512::new();
-        h.update(b"mc_subaddress"); h.update(a.as_bytes());
+        h.update(b"mc_subaddress");
+        h.update(a.as_bytes());
         h.update(Scalar::from(0u64).as_bytes());
         Scalar::from_bytes_mod_order_wide(&h.finalize().into())
     };
@@ -447,9 +507,8 @@ fn test_default_memo_backwards_compat() {
         fog_report_url: String::new(),
     };
 
-    let (tx_out, shared_secret) = build_tx_out_inner(
-        &recipient, 1_000_000, 0, None, None, None,
-    ).expect("build should succeed");
+    let (tx_out, shared_secret) = build_tx_out_inner(&recipient, 1_000_000, 0, None, None, None)
+        .expect("build should succeed");
 
     // Decrypt — should be all zeros
     let memo_hk = Hkdf::<Sha512>::new(Some(MEMO_KEY_SALT), shared_secret.as_bytes());
@@ -459,5 +518,8 @@ fn test_default_memo_backwards_compat() {
     for i in 0..MEMO_DATA_LEN {
         decrypted[i] = tx_out.e_memo[i] ^ memo_key[i];
     }
-    assert_eq!(decrypted, [0u8; MEMO_DATA_LEN], "default memo must be all zeros");
+    assert_eq!(
+        decrypted, [0u8; MEMO_DATA_LEN],
+        "default memo must be all zeros"
+    );
 }

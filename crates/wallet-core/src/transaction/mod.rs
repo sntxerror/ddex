@@ -6,30 +6,25 @@
 //!   - `mlsag`:  MLSAG ring signatures (sign/verify)
 //!   - `builder`: Transaction assembly, input selection, wasm entry points
 
-mod encode;
-mod output;
-mod mlsag;
 mod builder;
+mod encode;
+mod mlsag;
+mod output;
 
-use serde::{Serialize, Deserialize};
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::scalar::Scalar;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use crate::keys::scalar_from_canonical;
-
-// Re-export the wasm_bindgen entry points
-pub use builder::build_transaction;
-pub use builder::derive_onetime_private_key;
-pub use builder::debug_verify_onetime_key;
-pub use builder::derive_tx_out_blinding;
-
-// Re-export for tests and other modules
+// Re-export for tests and other modules that need them
+// These are only used in tests, so allow unused in non-test builds
+#[allow(unused_imports)]
 pub(crate) use encode::{encode_tx, encode_tx_out};
+#[allow(unused_imports)]
 pub(crate) use output::{
-    build_tx_out_inner, build_authenticated_sender_memo, build_destination_memo,
+    build_authenticated_sender_memo, build_destination_memo, build_tx_out_inner,
     compute_address_hash, compute_confirmation_number,
 };
 
@@ -80,11 +75,13 @@ pub(crate) const TOKEN_ID_MOB: u64 = 0;
 /// A TxOut in the ring (ring member from merkle proofs / ring samples)
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RingMember {
-    pub target_key: Vec<u8>,      // 32-byte compressed Ristretto
-    pub public_key: Vec<u8>,      // 32-byte compressed Ristretto
-    pub commitment: Vec<u8>,      // 32-byte compressed Ristretto (Pedersen)
-    #[serde(default)] pub tx_out_bytes: Vec<u8>,
-    #[serde(default)] pub proof_bytes: Vec<u8>,
+    pub target_key: Vec<u8>, // 32-byte compressed Ristretto
+    pub public_key: Vec<u8>, // 32-byte compressed Ristretto
+    pub commitment: Vec<u8>, // 32-byte compressed Ristretto (Pedersen)
+    #[serde(default)]
+    pub tx_out_bytes: Vec<u8>,
+    #[serde(default)]
+    pub proof_bytes: Vec<u8>,
 }
 
 /// An owned TxOut that we want to spend
@@ -108,8 +105,8 @@ pub struct Recipient {
 /// A built TxOut ready for inclusion in a transaction
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BuiltTxOut {
-    pub target_key: Vec<u8>,      // 32-byte one-time public key
-    pub public_key: Vec<u8>,      // 32-byte tx public key R
+    pub target_key: Vec<u8>, // 32-byte one-time public key
+    pub public_key: Vec<u8>, // 32-byte tx public key R
     pub masked_value: u64,
     pub masked_token_id: Vec<u8>, // 8 bytes LE
     pub commitment: Vec<u8>,      // 32-byte Pedersen commitment
@@ -181,7 +178,8 @@ pub(crate) fn hash_to_point(tag: &[u8], data: &[u8]) -> RistrettoPoint {
 pub(crate) fn decompress(bytes: &[u8]) -> Result<RistrettoPoint, JsError> {
     let compressed = CompressedRistretto::from_slice(bytes)
         .map_err(|_| JsError::new("Invalid compressed point length"))?;
-    compressed.decompress()
+    compressed
+        .decompress()
         .ok_or_else(|| JsError::new("Invalid Ristretto point"))
 }
 

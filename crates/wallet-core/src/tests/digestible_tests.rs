@@ -22,7 +22,10 @@ fn test_merlin_digest_basic() {
     d3.agg_close(b"", b"TestStruct");
     let hash3 = d3.finalize();
 
-    assert_ne!(hash1, hash3, "Different inputs should produce different hash");
+    assert_ne!(
+        hash1, hash3,
+        "Different inputs should produce different hash"
+    );
 }
 
 #[test]

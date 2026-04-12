@@ -1,26 +1,26 @@
 //! Transaction assembly, input selection, and wasm entry points.
 
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
-use sha2::Sha512;
 use serde::Deserialize;
+use sha2::Sha512;
 use wasm_bindgen::prelude::*;
 
-use crate::keys::scalar_from_canonical;
-use super::{
-    OwnedTxOutInput, Recipient, BuiltTxOut, SignedInput, BuiltTransaction, TxBuildResult,
-    hash_to_scalar, decompress, random_scalar, token_generator, compute_tx_prefix_hash,
-    ONETIME_KEY_HASH_TO_SCALAR, AMOUNT_SHARED_SECRET_TAG, AMOUNT_BLINDING_SALT,
-    AMOUNT_BLINDING_INFO, TOKEN_ID_MOB,
-};
-use super::output::{
-    build_tx_out_inner, compute_address_hash, build_authenticated_sender_memo,
-    build_destination_memo, compute_confirmation_number,
-};
-use super::mlsag::{sign_mlsag, verify_mlsag};
 use super::encode::{encode_tx, verify_tx_prefix_hash_round_trip};
+use super::mlsag::{sign_mlsag, verify_mlsag};
+use super::output::{
+    build_authenticated_sender_memo, build_destination_memo, build_tx_out_inner,
+    compute_address_hash, compute_confirmation_number,
+};
+use super::{
+    compute_tx_prefix_hash, decompress, hash_to_scalar, random_scalar, token_generator,
+    BuiltTransaction, BuiltTxOut, OwnedTxOutInput, Recipient, SignedInput, TxBuildResult,
+    AMOUNT_BLINDING_INFO, AMOUNT_BLINDING_SALT, AMOUNT_SHARED_SECRET_TAG,
+    ONETIME_KEY_HASH_TO_SCALAR, TOKEN_ID_MOB,
+};
+use crate::keys::scalar_from_canonical;
 
 /// Simple input selection: pick the fewest TxOuts that cover amount + fee.
 fn select_inputs(
@@ -28,10 +28,12 @@ fn select_inputs(
     amount: u64,
     fee: u64,
 ) -> Result<(Vec<usize>, u64), JsError> {
-    let needed = amount.checked_add(fee)
+    let needed = amount
+        .checked_add(fee)
         .ok_or_else(|| JsError::new("Amount + fee overflow"))?;
 
-    let mut indexed: Vec<(usize, u64)> = owned_txouts.iter()
+    let mut indexed: Vec<(usize, u64)> = owned_txouts
+        .iter()
         .enumerate()
         .map(|(i, t)| (i, t.value))
         .collect();
@@ -77,10 +79,16 @@ pub fn build_transaction(
         spend_private_key: Vec<u8>,
     }
     let account_key: AccountKeyParts = serde_wasm_bindgen::from_value(account_key_js)?;
-    let view_bytes: [u8; 32] = account_key.view_private_key.as_slice().try_into()
+    let view_bytes: [u8; 32] = account_key
+        .view_private_key
+        .as_slice()
+        .try_into()
         .map_err(|_| JsError::new("view key must be 32 bytes"))?;
     let view_private = scalar_from_canonical(&view_bytes, "view")?;
-    let spend_bytes: [u8; 32] = account_key.spend_private_key.as_slice().try_into()
+    let spend_bytes: [u8; 32] = account_key
+        .spend_private_key
+        .as_slice()
+        .try_into()
         .map_err(|_| JsError::new("spend key must be 32 bytes"))?;
     let spend_private = scalar_from_canonical(&spend_bytes, "spend")?;
 
@@ -117,14 +125,15 @@ pub fn build_transaction(
         &default_subaddr_view_pub,
         &d_0.compress().as_bytes().to_vec(),
     );
-    let recipient_address_hash = compute_address_hash(
-        &recipient.view_public_key,
-        &recipient.spend_public_key,
-    );
+    let recipient_address_hash =
+        compute_address_hash(&recipient.view_public_key, &recipient.spend_public_key);
 
     let recipient_memo = if payment_request_id != 0 {
         Some(build_authenticated_sender_memo(
-            &spend_private, &sender_address_hash, &recipient, payment_request_id,
+            &spend_private,
+            &sender_address_hash,
+            &recipient,
+            payment_request_id,
         )?)
     } else {
         None
@@ -132,7 +141,11 @@ pub fn build_transaction(
 
     let change_memo = if payment_request_id != 0 {
         let total_outlay = amount + fee;
-        Some(build_destination_memo(&recipient_address_hash, fee, total_outlay))
+        Some(build_destination_memo(
+            &recipient_address_hash,
+            fee,
+            total_outlay,
+        ))
     } else {
         None
     };
@@ -141,17 +154,23 @@ pub fn build_transaction(
     let mut outputs = Vec::new();
 
     let (recipient_output, recipient_shared_secret) = build_tx_out_inner(
-        &recipient, amount, TOKEN_ID_MOB, fog_pk, None,
+        &recipient,
+        amount,
+        TOKEN_ID_MOB,
+        fog_pk,
+        None,
         recipient_memo.as_ref(),
     )?;
-    let confirmation_number = compute_confirmation_number(
-        &recipient_shared_secret, &recipient_output.public_key,
-    );
+    let confirmation_number =
+        compute_confirmation_number(&recipient_shared_secret, &recipient_output.public_key);
     outputs.push(recipient_output);
 
     if change_amount > 0 {
         let (change_output, _) = build_tx_out_inner(
-            &change_recipient, change_amount, TOKEN_ID_MOB, fog_pk,
+            &change_recipient,
+            change_amount,
+            TOKEN_ID_MOB,
+            fog_pk,
             Some(&default_subaddr_view_pub),
             change_memo.as_ref(),
         )?;
@@ -162,27 +181,42 @@ pub fn build_transaction(
     outputs.sort_by(|a, b| a.public_key.cmp(&b.public_key));
 
     // Sort rings and track real_index through the sort
-    let selected_inputs: Vec<OwnedTxOutInput> = selected_indices.iter().map(|&i| {
-        let input = &inputs[i];
-        let mut indexed_ring: Vec<(usize, &super::RingMember)> = input.ring.iter().enumerate().collect();
-        indexed_ring.sort_by(|a, b| a.1.public_key.cmp(&b.1.public_key));
-        let new_real_index = indexed_ring.iter().position(|(orig_idx, _)| *orig_idx == input.real_index)
-            .expect("real_index must be in ring");
-        let sorted_ring: Vec<super::RingMember> = indexed_ring.into_iter().map(|(_, m)| m.clone()).collect();
-        OwnedTxOutInput {
-            real_index: new_real_index,
-            ring: sorted_ring,
-            subaddress_index: input.subaddress_index,
-            value: input.value,
-            token_id: input.token_id,
-        }
-    }).collect();
+    let selected_inputs: Vec<OwnedTxOutInput> = selected_indices
+        .iter()
+        .map(|&i| {
+            let input = &inputs[i];
+            let mut indexed_ring: Vec<(usize, &super::RingMember)> =
+                input.ring.iter().enumerate().collect();
+            indexed_ring.sort_by(|a, b| a.1.public_key.cmp(&b.1.public_key));
+            let new_real_index = indexed_ring
+                .iter()
+                .position(|(orig_idx, _)| *orig_idx == input.real_index)
+                .expect("real_index must be in ring");
+            let sorted_ring: Vec<super::RingMember> =
+                indexed_ring.into_iter().map(|(_, m)| m.clone()).collect();
+            OwnedTxOutInput {
+                real_index: new_real_index,
+                ring: sorted_ring,
+                subaddress_index: input.subaddress_index,
+                value: input.value,
+                token_id: input.token_id,
+            }
+        })
+        .collect();
 
     // Sort inputs by first ring element's public_key
     let mut selected_inputs = selected_inputs;
     selected_inputs.sort_by(|a, b| {
-        let a_pk = a.ring.first().map(|m| m.public_key.as_slice()).unwrap_or(&[]);
-        let b_pk = b.ring.first().map(|m| m.public_key.as_slice()).unwrap_or(&[]);
+        let a_pk = a
+            .ring
+            .first()
+            .map(|m| m.public_key.as_slice())
+            .unwrap_or(&[]);
+        let b_pk = b
+            .ring
+            .first()
+            .map(|m| m.public_key.as_slice())
+            .unwrap_or(&[]);
         a_pk.cmp(b_pk)
     });
 
@@ -191,7 +225,10 @@ pub fn build_transaction(
     // Generate pseudo-output blindings (sum must equal sum of output blindings)
     let mut output_blinding_sum = Scalar::ZERO;
     for o in &outputs {
-        let bytes: [u8; 32] = o.blinding.as_slice().try_into()
+        let bytes: [u8; 32] = o
+            .blinding
+            .as_slice()
+            .try_into()
             .map_err(|_| JsError::new("Invalid output blinding length"))?;
         let s = Scalar::from_canonical_bytes(bytes)
             .into_option()
@@ -218,12 +255,15 @@ pub fn build_transaction(
     let mut input_ring_data: Vec<(&[super::RingMember], Vec<u8>)> = Vec::new();
 
     for (i, input) in selected_inputs.iter().enumerate() {
-        let pseudo_output = (Scalar::from(input.value) * h_token + pseudo_blindings[i] * RISTRETTO_BASEPOINT_POINT).compress();
+        let pseudo_output = (Scalar::from(input.value) * h_token
+            + pseudo_blindings[i] * RISTRETTO_BASEPOINT_POINT)
+            .compress();
         input_ring_data.push((&input.ring, pseudo_output.as_bytes().to_vec()));
     }
 
     // Compute TxPrefix hash
-    let prefix_refs: Vec<(&[super::RingMember], &[u8])> = input_ring_data.iter()
+    let prefix_refs: Vec<(&[super::RingMember], &[u8])> = input_ring_data
+        .iter()
         .map(|(ring, po)| (*ring, po.as_slice()))
         .collect();
     let tx_prefix_hash = compute_tx_prefix_hash(&prefix_refs, &outputs, fee, tombstone_block);
@@ -243,16 +283,23 @@ pub fn build_transaction(
         all_rp_blindings.push(
             Scalar::from_canonical_bytes(bytes)
                 .into_option()
-                .ok_or_else(|| JsError::new("Non-canonical output blinding scalar in range proof"))?
+                .ok_or_else(|| {
+                    JsError::new("Non-canonical output blinding scalar in range proof")
+                })?,
         );
     }
 
     let mc_gens = crate::bulletproofs::PedersenGens::for_token(h_token);
-    let range_proof = crate::bulletproofs::prove_range_with_generators(&all_rp_values, &all_rp_blindings, &mc_gens);
+    let range_proof = crate::bulletproofs::prove_range_with_generators(
+        &all_rp_values,
+        &all_rp_blindings,
+        &mc_gens,
+    );
     let range_proof_bytes = range_proof.to_bytes();
 
     // Compute MLSAG signing digest
-    let pseudo_output_refs: Vec<&[u8]> = input_ring_data.iter()
+    let pseudo_output_refs: Vec<&[u8]> = input_ring_data
+        .iter()
         .map(|(_, po)| po.as_slice())
         .collect();
     let range_proofs_vec: Vec<&[u8]> = vec![range_proof_bytes.as_slice()];
@@ -306,7 +353,12 @@ pub fn build_transaction(
             input.token_id,
         )?;
 
-        verify_mlsag(&mlsag_signing_digest, &input.ring, &pseudo_output, &mlsag_sig)?;
+        verify_mlsag(
+            &mlsag_signing_digest,
+            &input.ring,
+            &pseudo_output,
+            &mlsag_sig,
+        )?;
 
         signed_inputs.push(SignedInput {
             ring: input.ring.clone(),
@@ -316,10 +368,13 @@ pub fn build_transaction(
     }
 
     // Strip blinding from outputs for wire format
-    let wire_outputs: Vec<BuiltTxOut> = outputs.into_iter().map(|mut o| {
-        o.blinding = Vec::new();
-        o
-    }).collect();
+    let wire_outputs: Vec<BuiltTxOut> = outputs
+        .into_iter()
+        .map(|mut o| {
+            o.blinding = Vec::new();
+            o
+        })
+        .collect();
 
     let tx = BuiltTransaction {
         inputs: signed_inputs,
@@ -332,22 +387,42 @@ pub fn build_transaction(
 
     let tx_bytes = encode_tx(&tx);
 
-    web_sys::console::log_1(&format!(
-        "[WASM] encode_tx: {} bytes, {} inputs, {} outputs, fee={}, tombstone={}",
-        tx_bytes.len(), tx.inputs.len(), tx.outputs.len(), fee, tombstone_block
-    ).into());
+    web_sys::console::log_1(
+        &format!(
+            "[WASM] encode_tx: {} bytes, {} inputs, {} outputs, fee={}, tombstone={}",
+            tx_bytes.len(),
+            tx.inputs.len(),
+            tx.outputs.len(),
+            fee,
+            tombstone_block
+        )
+        .into(),
+    );
 
     // Round-trip verification
     {
         let empty_range_proof_bytes: &[u8] = &[];
-        verify_tx_prefix_hash_round_trip(&tx_bytes, &tx_prefix_hash, fee, tombstone_block, &mlsag_signing_digest, &pseudo_output_refs, empty_range_proof_bytes, &range_proofs_vec, &tx.outputs, TOKEN_ID_MOB)?;
+        verify_tx_prefix_hash_round_trip(
+            &tx_bytes,
+            &tx_prefix_hash,
+            fee,
+            tombstone_block,
+            &mlsag_signing_digest,
+            &pseudo_output_refs,
+            empty_range_proof_bytes,
+            &range_proofs_vec,
+            &tx.outputs,
+            TOKEN_ID_MOB,
+        )?;
     }
 
     // Prost canonicalization
     let tx_bytes = crate::prost_verify::canonicalize_tx_bytes(&tx_bytes)
         .map_err(|e| JsError::new(&format!("Prost canonicalization failed: {}", e)))?;
 
-    let key_images: Vec<Vec<u8>> = tx.inputs.iter()
+    let key_images: Vec<Vec<u8>> = tx
+        .inputs
+        .iter()
         .map(|input| input.mlsag.key_image.clone())
         .collect();
 
@@ -371,11 +446,13 @@ pub fn derive_onetime_private_key(
     subaddress_index: u64,
     tx_out_public_key: &[u8],
 ) -> Result<Vec<u8>, JsError> {
-    let view_bytes: [u8; 32] = view_private_key.try_into()
+    let view_bytes: [u8; 32] = view_private_key
+        .try_into()
         .map_err(|_| JsError::new("view key must be 32 bytes"))?;
     let a = scalar_from_canonical(&view_bytes, "view")?;
 
-    let spend_bytes: [u8; 32] = spend_private_key.try_into()
+    let spend_bytes: [u8; 32] = spend_private_key
+        .try_into()
         .map_err(|_| JsError::new("spend key must be 32 bytes"))?;
     let b = scalar_from_canonical(&spend_bytes, "spend")?;
 
@@ -404,11 +481,13 @@ pub fn debug_verify_onetime_key(
     tx_out_public_key: &[u8],
     expected_target_key: &[u8],
 ) -> Result<String, JsError> {
-    let view_bytes: [u8; 32] = view_private_key.try_into()
+    let view_bytes: [u8; 32] = view_private_key
+        .try_into()
         .map_err(|_| JsError::new("view key must be 32 bytes"))?;
     let a = scalar_from_canonical(&view_bytes, "view")?;
 
-    let spend_bytes: [u8; 32] = spend_private_key.try_into()
+    let spend_bytes: [u8; 32] = spend_private_key
+        .try_into()
         .map_err(|_| JsError::new("spend key must be 32 bytes"))?;
     let b = scalar_from_canonical(&spend_bytes, "spend")?;
 
@@ -432,9 +511,7 @@ pub fn debug_verify_onetime_key(
     let target = decompress(expected_target_key)?;
     let candidate_d = (target - hs * RISTRETTO_BASEPOINT_POINT).compress();
 
-    let hex = |bytes: &[u8]| -> String {
-        bytes.iter().map(|b| format!("{:02x}", b)).collect()
-    };
+    let hex = |bytes: &[u8]| -> String { bytes.iter().map(|b| format!("{:02x}", b)).collect() };
 
     let ok = x_g.as_bytes() == expected_target_key;
 
@@ -470,7 +547,8 @@ pub fn derive_tx_out_blinding(
     view_private_key: &[u8],
     tx_out_public_key: &[u8],
 ) -> Result<Vec<u8>, JsError> {
-    let view_bytes: [u8; 32] = view_private_key.try_into()
+    let view_bytes: [u8; 32] = view_private_key
+        .try_into()
         .map_err(|_| JsError::new("view key must be 32 bytes"))?;
     let a = scalar_from_canonical(&view_bytes, "view")?;
 
@@ -490,4 +568,232 @@ pub fn derive_tx_out_blinding(
     let blinding = Scalar::from_bytes_mod_order_wide(&blinding_bytes);
 
     Ok(blinding.as_bytes().to_vec())
+}
+
+/// Build a transaction that includes Signed Contingent Inputs (SCIs).
+///
+/// This function merges SCIs from counterparties with optional regular inputs
+/// to create a complete transaction. Use cases:
+/// - Atomic swaps: counterparty A creates SCI offering TokenX for TokenY,
+///   counterparty B adds their own SCI or regular input with TokenY
+/// - Presigned transactions: use SCI to commit to spending under specific conditions
+///
+/// The function:
+/// 1. Validates all SCIs
+/// 2. Merges required outputs from SCIs
+/// 3. Adds optional regular inputs (for additional funds or change)
+/// 4. Builds and signs the complete transaction
+///
+/// Parameters:
+/// - scis_js: Array of SignedContingentInput objects
+/// - account_key_js: Optional account key for signing additional regular inputs (null if none)
+/// - additional_inputs_js: Optional array of OwnedTxOutInput for regular inputs (null if none)
+/// - fee: Transaction fee in picoMOB
+/// - tombstone_block: Maximum block height for transaction validity
+///
+/// Returns: TxBuildResult with transaction bytes, prefix hash, key images, etc.
+#[wasm_bindgen]
+pub fn build_transaction_with_scis(
+    scis_js: JsValue,
+    account_key_js: JsValue,
+    additional_inputs_js: JsValue,
+    fee: u64,
+    tombstone_block: u64,
+) -> Result<JsValue, JsError> {
+    use crate::sci::{decode_tx_out, SignedContingentInput};
+
+    // Deserialize SCIs
+    let scis: Vec<SignedContingentInput> = serde_wasm_bindgen::from_value(scis_js)?;
+
+    if scis.is_empty() {
+        return Err(JsError::new("At least one SCI must be provided"));
+    }
+
+    // Optional: deserialize account key and additional inputs
+    #[derive(Deserialize)]
+    struct AccountKeyParts {
+        view_private_key: Vec<u8>,
+        spend_private_key: Vec<u8>,
+    }
+
+    let (view_private, spend_private) =
+        if !account_key_js.is_null() && !account_key_js.is_undefined() {
+            let account_key: AccountKeyParts = serde_wasm_bindgen::from_value(account_key_js)?;
+            let view_bytes: [u8; 32] = account_key
+                .view_private_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| JsError::new("view key must be 32 bytes"))?;
+            let spend_bytes: [u8; 32] = account_key
+                .spend_private_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| JsError::new("spend key must be 32 bytes"))?;
+            (
+                Some(scalar_from_canonical(&view_bytes, "view")?),
+                Some(scalar_from_canonical(&spend_bytes, "spend")?),
+            )
+        } else {
+            (None, None)
+        };
+
+    let additional_inputs: Vec<OwnedTxOutInput> =
+        if !additional_inputs_js.is_null() && !additional_inputs_js.is_undefined() {
+            serde_wasm_bindgen::from_value(additional_inputs_js)?
+        } else {
+            Vec::new()
+        };
+
+    // Validate SCIs and check tombstone compatibility
+    for sci in &scis {
+        if let Some(rules) = &sci.input_rules {
+            if rules.max_tombstone_block > 0 && tombstone_block > rules.max_tombstone_block {
+                return Err(JsError::new(&format!(
+                    "Tombstone block {} exceeds SCI maximum {}",
+                    tombstone_block, rules.max_tombstone_block
+                )));
+            }
+        }
+    }
+
+    // Collect outputs from SCIs
+    let mut outputs = Vec::new();
+    for sci in &scis {
+        if let Some(rules) = &sci.input_rules {
+            for (idx, output_bytes) in rules.required_outputs.iter().enumerate() {
+                let mut output = decode_tx_out(output_bytes)?;
+                // Fill in value and blinding from unmasked amounts
+                if idx < sci.required_outputs_unmasked.len() {
+                    let unmasked = &sci.required_outputs_unmasked[idx];
+                    output.value = unmasked.value;
+                    output.blinding = unmasked.blinding.clone();
+                }
+                outputs.push(output);
+            }
+        }
+    }
+
+    // Sort outputs by public_key (MobileCoin requirement)
+    outputs.sort_by(|a, b| a.public_key.cmp(&b.public_key));
+
+    // Build signed inputs from SCIs
+    let mut signed_inputs = Vec::new();
+    for sci in &scis {
+        signed_inputs.push(SignedInput {
+            ring: sci.ring.clone(),
+            pseudo_output: {
+                // Reconstruct pseudo-output commitment from unmasked amount
+                let h_token = token_generator(sci.pseudo_output_unmasked.token_id);
+                let blinding_bytes: [u8; 32] = sci
+                    .pseudo_output_unmasked
+                    .blinding
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| JsError::new("Invalid pseudo-output blinding length"))?;
+                let blinding = Scalar::from_canonical_bytes(blinding_bytes)
+                    .into_option()
+                    .ok_or_else(|| JsError::new("Non-canonical pseudo-output blinding"))?;
+                let pseudo = (Scalar::from(sci.pseudo_output_unmasked.value) * h_token
+                    + blinding * RISTRETTO_BASEPOINT_POINT)
+                    .compress();
+                pseudo.as_bytes().to_vec()
+            },
+            mlsag: sci.mlsag.clone(),
+        });
+    }
+
+    // TODO: Handle additional regular inputs if provided
+    if !additional_inputs.is_empty() {
+        if view_private.is_none() || spend_private.is_none() {
+            return Err(JsError::new(
+                "Account key required when additional inputs are provided",
+            ));
+        }
+        return Err(JsError::new(
+            "Additional regular inputs not yet supported in build_transaction_with_scis",
+        ));
+    }
+
+    // Generate range proof for all pseudo-outputs and outputs
+    let mut all_rp_values: Vec<u64> = Vec::new();
+    let mut all_rp_blindings: Vec<Scalar> = Vec::new();
+
+    // Add SCI pseudo-outputs to range proof
+    for sci in &scis {
+        all_rp_values.push(sci.pseudo_output_unmasked.value);
+        let blinding_bytes: [u8; 32] = sci
+            .pseudo_output_unmasked
+            .blinding
+            .as_slice()
+            .try_into()
+            .map_err(|_| JsError::new("Invalid pseudo-output blinding length"))?;
+        let blinding = Scalar::from_canonical_bytes(blinding_bytes)
+            .into_option()
+            .ok_or_else(|| JsError::new("Non-canonical pseudo-output blinding"))?;
+        all_rp_blindings.push(blinding);
+    }
+
+    // Add outputs to range proof
+    for output in &outputs {
+        all_rp_values.push(output.value);
+        let blinding_bytes: [u8; 32] = output
+            .blinding
+            .as_slice()
+            .try_into()
+            .map_err(|_| JsError::new("Invalid output blinding length"))?;
+        let blinding = Scalar::from_canonical_bytes(blinding_bytes)
+            .into_option()
+            .ok_or_else(|| JsError::new("Non-canonical output blinding"))?;
+        all_rp_blindings.push(blinding);
+    }
+
+    // Assume TOKEN_ID_MOB for now (multi-token support would need enhancement)
+    let h_token = token_generator(TOKEN_ID_MOB);
+    let mc_gens = crate::bulletproofs::PedersenGens::for_token(h_token);
+    let range_proof = crate::bulletproofs::prove_range_with_generators(
+        &all_rp_values,
+        &all_rp_blindings,
+        &mc_gens,
+    );
+
+    // Compute TxPrefix hash
+    let input_ring_data: Vec<(&[super::RingMember], &[u8])> = signed_inputs
+        .iter()
+        .map(|si| (si.ring.as_slice(), si.pseudo_output.as_slice()))
+        .collect();
+    let tx_prefix_hash = compute_tx_prefix_hash(&input_ring_data, &outputs, fee, tombstone_block);
+
+    // Strip blinding from outputs for wire format
+    let wire_outputs: Vec<BuiltTxOut> = outputs
+        .into_iter()
+        .map(|mut o| {
+            o.blinding = Vec::new();
+            o
+        })
+        .collect();
+
+    let tx = BuiltTransaction {
+        inputs: signed_inputs.clone(),
+        outputs: wire_outputs,
+        fee,
+        tombstone_block,
+        tx_prefix_hash: tx_prefix_hash.to_vec(),
+        range_proof: range_proof.clone(),
+    };
+
+    let tx_bytes = encode_tx(&tx);
+
+    let key_images: Vec<Vec<u8>> = signed_inputs
+        .iter()
+        .map(|si| si.mlsag.key_image.clone())
+        .collect();
+
+    let result = TxBuildResult {
+        tx_bytes,
+        tx_prefix_hash: tx_prefix_hash.to_vec(),
+        key_images,
+        confirmation_number: Vec::new(), // No confirmation number for SCI transactions
+    };
+
+    Ok(serde_wasm_bindgen::to_value(&result)?)
 }

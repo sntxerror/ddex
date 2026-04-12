@@ -1,11 +1,15 @@
+use aes_gcm::{
+    aead::{AeadInPlace, Nonce},
+    Aes256Gcm, KeyInit,
+};
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-use curve25519_dalek::ristretto::CompressedRistretto;
+use curve25519_dalek::scalar::Scalar;
 use hkdf::SimpleHkdf;
-use aes_gcm::{Aes256Gcm, KeyInit, aead::{AeadInPlace, Nonce, Tag}};
 
-use crate::scanning::{kex_rng_prf, decrypt_fog_ciphertext_inner, CRYPTO_BOX_SALT, CRYPTO_BOX_INFO};
+use crate::scanning::{
+    decrypt_fog_ciphertext_inner, kex_rng_prf, CRYPTO_BOX_INFO, CRYPTO_BOX_SALT,
+};
 
 #[test]
 fn test_kex_rng_prf_deterministic() {
@@ -15,7 +19,10 @@ fn test_kex_rng_prf_deterministic() {
 
     assert_eq!(out0.len(), 16, "KexRng output must be 16 bytes");
     assert_eq!(out1.len(), 16, "KexRng output must be 16 bytes");
-    assert_ne!(out0, out1, "Different counters must produce different outputs");
+    assert_ne!(
+        out0, out1,
+        "Different counters must produce different outputs"
+    );
 
     let out0_again = kex_rng_prf(&secret, 0);
     assert_eq!(out0, out0_again, "PRF must be deterministic");
@@ -40,15 +47,15 @@ fn test_kex_rng_prf_matches_tag() {
 #[test]
 fn test_fog_crypto_box_round_trip() {
     let view_private = Scalar::from_bytes_mod_order([
-        1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-        17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,0
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 0,
     ]);
     let view_public = (view_private * RISTRETTO_BASEPOINT_POINT).compress();
     let view_private_bytes = view_private.as_bytes().to_vec();
 
     let eph_private = Scalar::from_bytes_mod_order([
-        32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,
-        48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,0
+        32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,
+        55, 56, 57, 58, 59, 60, 61, 62, 0,
     ]);
     let eph_public = (eph_private * RISTRETTO_BASEPOINT_POINT).compress();
 
@@ -65,7 +72,9 @@ fn test_fog_crypto_box_round_trip() {
     let mut buffer = plaintext.to_vec();
     let cipher = Aes256Gcm::new_from_slice(aes_key).unwrap();
     let nonce = Nonce::<Aes256Gcm>::from_slice(aes_nonce_bytes);
-    let tag = cipher.encrypt_in_place_detached(nonce, &[], &mut buffer).unwrap();
+    let tag = cipher
+        .encrypt_in_place_detached(nonce, &[], &mut buffer)
+        .unwrap();
 
     let mut ciphertext = Vec::new();
     ciphertext.extend_from_slice(&buffer);
@@ -76,7 +85,10 @@ fn test_fog_crypto_box_round_trip() {
 
     let decrypted = decrypt_fog_ciphertext_inner(&view_private_bytes, &ciphertext)
         .expect("decryption should succeed");
-    assert_eq!(&decrypted, plaintext, "round-trip must recover original plaintext");
+    assert_eq!(
+        &decrypted, plaintext,
+        "round-trip must recover original plaintext"
+    );
 
     let wrong_key = Scalar::from_bytes_mod_order([99u8; 32]);
     let result = decrypt_fog_ciphertext_inner(wrong_key.as_bytes(), &ciphertext);

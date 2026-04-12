@@ -41,7 +41,10 @@ fn test_encode_proto_bytes() {
 fn test_encode_varint_field_zero_skipped() {
     let mut buf = Vec::new();
     encode_varint_field(&mut buf, 3, 0);
-    assert!(buf.is_empty(), "varint field with value 0 should not encode");
+    assert!(
+        buf.is_empty(),
+        "varint field with value 0 should not encode"
+    );
 }
 
 #[test]
@@ -62,7 +65,10 @@ fn test_encode_fixed64_zero_skipped() {
 fn test_encode_fixed64_nonzero() {
     let mut buf = Vec::new();
     encode_fixed64(&mut buf, 2, 0x0102030405060708);
-    assert_eq!(buf, vec![0x11, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
+    assert_eq!(
+        buf,
+        vec![0x11, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
+    );
 }
 
 #[test]

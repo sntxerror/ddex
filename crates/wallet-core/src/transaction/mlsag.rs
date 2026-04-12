@@ -1,15 +1,14 @@
 //! MLSAG ring signatures for sender anonymity.
 
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::CompressedRistretto;
+use curve25519_dalek::scalar::Scalar;
 use wasm_bindgen::prelude::*;
 
 use super::{
-    RingMember, RingMLSAG,
-    hash_to_point, decompress, random_scalar, token_generator,
-    ONETIME_KEY_HASH_TO_POINT, MLSAG_CHALLENGE_TAG,
+    decompress, hash_to_point, random_scalar, token_generator, RingMLSAG, RingMember,
+    MLSAG_CHALLENGE_TAG, ONETIME_KEY_HASH_TO_POINT,
 };
 
 /// Sign a single input ring with MLSAG.
@@ -32,7 +31,9 @@ pub(super) fn sign_mlsag(
     let z = *pseudo_output_blinding - *blinding;
 
     let h_token = token_generator(token_id);
-    let pseudo_output = (Scalar::from(value) * h_token + *pseudo_output_blinding * RISTRETTO_BASEPOINT_POINT).compress();
+    let pseudo_output = (Scalar::from(value) * h_token
+        + *pseudo_output_blinding * RISTRETTO_BASEPOINT_POINT)
+        .compress();
 
     let p_pi = CompressedRistretto::from_slice(&ring[real_index].target_key)
         .map_err(|_| JsError::new("Invalid target key in ring"))?;
@@ -40,10 +41,22 @@ pub(super) fn sign_mlsag(
     // Self-verification: onetime private key must match target_key
     let computed_pubkey = (x * RISTRETTO_BASEPOINT_POINT).compress();
     if computed_pubkey != p_pi {
-        let expected_hex: String = p_pi.as_bytes().iter().map(|b| format!("{:02x}", b)).collect();
-        let got_hex: String = computed_pubkey.as_bytes().iter().map(|b| format!("{:02x}", b)).collect();
+        let expected_hex: String = p_pi
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+        let got_hex: String = computed_pubkey
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
         let x_hex: String = x.as_bytes().iter().map(|b| format!("{:02x}", b)).collect();
-        let ring_pk_hex: String = ring[real_index].public_key.iter().map(|b| format!("{:02x}", b)).collect();
+        let ring_pk_hex: String = ring[real_index]
+            .public_key
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
         return Err(JsError::new(&format!(
             "MLSAG self-check FAILED: x*G != target_key. target={} xG={} x={} ring_pk={} real_idx={}",
             expected_hex, got_hex, x_hex, ring_pk_hex, real_index
@@ -52,8 +65,10 @@ pub(super) fn sign_mlsag(
 
     // Self-verification: commitment balance
     let real_commitment = decompress(&ring[real_index].commitment)?;
-    let expected_z_point = pseudo_output.decompress()
-        .ok_or_else(|| JsError::new("Invalid pseudo output for self-check"))? - real_commitment;
+    let expected_z_point = pseudo_output
+        .decompress()
+        .ok_or_else(|| JsError::new("Invalid pseudo output for self-check"))?
+        - real_commitment;
     let computed_z_point = z * RISTRETTO_BASEPOINT_POINT;
     if computed_z_point.compress() != expected_z_point.compress() {
         let hex = |bytes: &[u8]| -> String { bytes.iter().map(|b| format!("{:02x}", b)).collect() };
@@ -75,9 +90,12 @@ pub(super) fn sign_mlsag(
     let hp_pi = hash_to_point(ONETIME_KEY_HASH_TO_POINT, p_pi.as_bytes());
     let key_image = (x * hp_pi).compress();
 
-    let mut ring_target_keys: Vec<curve25519_dalek::ristretto::RistrettoPoint> = Vec::with_capacity(ring_size);
-    let mut ring_commitments: Vec<curve25519_dalek::ristretto::RistrettoPoint> = Vec::with_capacity(ring_size);
-    let pseudo_output_point = pseudo_output.decompress()
+    let mut ring_target_keys: Vec<curve25519_dalek::ristretto::RistrettoPoint> =
+        Vec::with_capacity(ring_size);
+    let mut ring_commitments: Vec<curve25519_dalek::ristretto::RistrettoPoint> =
+        Vec::with_capacity(ring_size);
+    let pseudo_output_point = pseudo_output
+        .decompress()
         .ok_or_else(|| JsError::new("Invalid pseudo output"))?;
 
     for member in ring {
@@ -85,7 +103,8 @@ pub(super) fn sign_mlsag(
         ring_commitments.push(decompress(&member.commitment)?);
     }
 
-    let key_image_point = key_image.decompress()
+    let key_image_point = key_image
+        .decompress()
         .ok_or_else(|| JsError::new("Invalid key image point"))?;
 
     let alpha_0 = random_scalar();
@@ -112,10 +131,7 @@ pub(super) fn sign_mlsag(
 
         let l_0_i = (r_i_0 * RISTRETTO_BASEPOINT_POINT + c_i * ring_target_keys[i]).compress();
 
-        let hp_i = hash_to_point(
-            ONETIME_KEY_HASH_TO_POINT,
-            ring[i].target_key.as_slice(),
-        );
+        let hp_i = hash_to_point(ONETIME_KEY_HASH_TO_POINT, ring[i].target_key.as_slice());
         let r_0_i = (r_i_0 * hp_i + c_i * key_image_point).compress();
 
         let z_i = pseudo_output_point - ring_commitments[i];
@@ -149,17 +165,23 @@ pub(super) fn verify_mlsag(
     let hex = |bytes: &[u8]| -> String { bytes.iter().map(|b| format!("{:02x}", b)).collect() };
     let ring_size = ring.len();
 
-    let c_zero_bytes: [u8; 32] = sig.c_zero.as_slice().try_into()
+    let c_zero_bytes: [u8; 32] = sig
+        .c_zero
+        .as_slice()
+        .try_into()
         .map_err(|_| JsError::new("c_zero not 32 bytes"))?;
-    let c_zero = Scalar::from_canonical_bytes(c_zero_bytes).into_option()
+    let c_zero = Scalar::from_canonical_bytes(c_zero_bytes)
+        .into_option()
         .ok_or_else(|| JsError::new("c_zero not canonical scalar"))?;
 
     let key_image = CompressedRistretto::from_slice(&sig.key_image)
         .map_err(|_| JsError::new("key_image not 32 bytes"))?;
-    let key_image_point = key_image.decompress()
+    let key_image_point = key_image
+        .decompress()
         .ok_or_else(|| JsError::new("key_image not valid point"))?;
 
-    let pseudo_output_point = pseudo_output.decompress()
+    let pseudo_output_point = pseudo_output
+        .decompress()
         .ok_or_else(|| JsError::new("pseudo_output not valid point"))?;
 
     let mut c_cur = c_zero;
@@ -168,15 +190,21 @@ pub(super) fn verify_mlsag(
         let p_i = decompress(&ring[i].target_key)?;
         let c_i = decompress(&ring[i].commitment)?;
 
-        let r_0_bytes: [u8; 32] = sig.responses[2 * i].as_slice().try_into()
+        let r_0_bytes: [u8; 32] = sig.responses[2 * i]
+            .as_slice()
+            .try_into()
             .map_err(|_| JsError::new("response not 32 bytes"))?;
-        let r_0 = Scalar::from_canonical_bytes(r_0_bytes).into_option()
-            .ok_or_else(|| JsError::new(&format!("response[{}] not canonical", 2*i)))?;
+        let r_0 = Scalar::from_canonical_bytes(r_0_bytes)
+            .into_option()
+            .ok_or_else(|| JsError::new(&format!("response[{}] not canonical", 2 * i)))?;
 
-        let r_1_bytes: [u8; 32] = sig.responses[2 * i + 1].as_slice().try_into()
+        let r_1_bytes: [u8; 32] = sig.responses[2 * i + 1]
+            .as_slice()
+            .try_into()
             .map_err(|_| JsError::new("response not 32 bytes"))?;
-        let r_1 = Scalar::from_canonical_bytes(r_1_bytes).into_option()
-            .ok_or_else(|| JsError::new(&format!("response[{}] not canonical", 2*i+1)))?;
+        let r_1 = Scalar::from_canonical_bytes(r_1_bytes)
+            .into_option()
+            .ok_or_else(|| JsError::new(&format!("response[{}] not canonical", 2 * i + 1)))?;
 
         let l_0 = (r_0 * RISTRETTO_BASEPOINT_POINT + c_cur * p_i).compress();
 
@@ -193,13 +221,18 @@ pub(super) fn verify_mlsag(
         web_sys::console::log_1(&"[WASM] MLSAG self-verify: PASSED ✓".into());
         Ok(())
     } else {
-        web_sys::console::log_1(&format!(
-            "[WASM] MLSAG self-verify: FAILED ✗\n  c_zero:    {}\n  c_result:  {}",
-            hex(c_zero.as_bytes()), hex(c_cur.as_bytes())
-        ).into());
+        web_sys::console::log_1(
+            &format!(
+                "[WASM] MLSAG self-verify: FAILED ✗\n  c_zero:    {}\n  c_result:  {}",
+                hex(c_zero.as_bytes()),
+                hex(c_cur.as_bytes())
+            )
+            .into(),
+        );
         Err(JsError::new(&format!(
             "MLSAG self-verify FAILED: c_zero={} c_result={}",
-            hex(c_zero.as_bytes()), hex(c_cur.as_bytes())
+            hex(c_zero.as_bytes()),
+            hex(c_cur.as_bytes())
         )))
     }
 }

@@ -2,8 +2,11 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::proto::{encode_varint, encode_proto_bytes, encode_varint_field, encode_fixed64, encode_submessage, encode_packed_fixed64};
-use super::{BuiltTxOut, RingMLSAG, RingMember, SignedInput, BuiltTransaction, TOKEN_ID_MOB};
+use super::{BuiltTransaction, BuiltTxOut, RingMLSAG, RingMember, TOKEN_ID_MOB};
+use crate::proto::{
+    encode_fixed64, encode_packed_fixed64, encode_proto_bytes, encode_submessage, encode_varint,
+    encode_varint_field,
+};
 
 /// Encode a CompressedRistretto protobuf: message { bytes data = 1; }
 fn encode_compressed_ristretto(data: &[u8]) -> Vec<u8> {
@@ -100,20 +103,53 @@ fn normalize_membership_proof(raw: &[u8]) -> Vec<u8> {
         let wire_type = (tag & 7) as u8;
 
         match (field_number, wire_type) {
-            (1, 0) => { let (val, new_pos) = decode_proto_varint(raw, pos); index = val; pos = new_pos; }
-            (1, 1) => { if pos + 8 <= raw.len() { index = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
-            (2, 0) => { let (val, new_pos) = decode_proto_varint(raw, pos); highest_index = val; pos = new_pos; }
-            (2, 1) => { if pos + 8 <= raw.len() { highest_index = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
+            (1, 0) => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                index = val;
+                pos = new_pos;
+            }
+            (1, 1) => {
+                if pos + 8 <= raw.len() {
+                    index = u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
+            (2, 0) => {
+                let (val, new_pos) = decode_proto_varint(raw, pos);
+                highest_index = val;
+                pos = new_pos;
+            }
+            (2, 1) => {
+                if pos + 8 <= raw.len() {
+                    highest_index = u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
             (3, 2) => {
                 let (len, new_pos) = decode_proto_varint(raw, pos);
                 pos = new_pos;
                 let end = pos + len as usize;
-                if end <= raw.len() { elements.push(&raw[pos..end]); pos = end; } else { break; }
+                if end <= raw.len() {
+                    elements.push(&raw[pos..end]);
+                    pos = end;
+                } else {
+                    break;
+                }
             }
-            (_, 0) => { let (_, new_pos) = decode_proto_varint(raw, pos); pos = new_pos; }
-            (_, 1) => { pos += 8; }
-            (_, 2) => { let (len, new_pos) = decode_proto_varint(raw, pos); pos = new_pos + len as usize; }
-            (_, 5) => { pos += 4; }
+            (_, 0) => {
+                let (_, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+            }
+            (_, 1) => {
+                pos += 8;
+            }
+            (_, 2) => {
+                let (len, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos + len as usize;
+            }
+            (_, 5) => {
+                pos += 4;
+            }
             _ => break,
         }
     }
@@ -141,7 +177,9 @@ fn decode_proto_varint(buf: &[u8], mut pos: usize) -> (u64, usize) {
         let b = buf[pos];
         value |= ((b & 0x7f) as u64) << shift;
         pos += 1;
-        if b & 0x80 == 0 { break; }
+        if b & 0x80 == 0 {
+            break;
+        }
         shift += 7;
     }
     (value, pos)
@@ -165,7 +203,9 @@ fn normalize_tx_out(raw: &[u8]) -> Vec<u8> {
                 let (len, new_pos) = decode_proto_varint(raw, pos);
                 pos = new_pos;
                 let end = pos + len as usize;
-                if end > raw.len() { break; }
+                if end > raw.len() {
+                    break;
+                }
                 let data = &raw[pos..end];
 
                 if field_number == 1 || field_number == 6 {
@@ -183,16 +223,20 @@ fn normalize_tx_out(raw: &[u8]) -> Vec<u8> {
             }
             1 => {
                 if pos + 8 <= raw.len() {
-                    let val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap());
+                    let val = u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap());
                     encode_fixed64(&mut buf, field_number, val);
                     pos += 8;
-                } else { break; }
+                } else {
+                    break;
+                }
             }
             5 => {
                 if pos + 4 <= raw.len() {
-                    buf.extend_from_slice(&raw[start..pos+4]);
+                    buf.extend_from_slice(&raw[start..pos + 4]);
                     pos += 4;
-                } else { break; }
+                } else {
+                    break;
+                }
             }
             _ => break,
         }
@@ -224,15 +268,19 @@ fn normalize_masked_amount(raw: &[u8]) -> Vec<u8> {
                 if pos + 8 <= raw.len() {
                     let tag2 = (2u32 << 3) | 1;
                     encode_varint(&mut buf, tag2 as u64);
-                    buf.extend_from_slice(&raw[pos..pos+8]);
+                    buf.extend_from_slice(&raw[pos..pos + 8]);
                     pos += 8;
-                } else { break; }
+                } else {
+                    break;
+                }
             }
             (_, 2) => {
                 let (len, new_pos) = decode_proto_varint(raw, pos);
                 pos = new_pos;
                 let end = pos + len as usize;
-                if end > raw.len() { break; }
+                if end > raw.len() {
+                    break;
+                }
                 encode_submessage(&mut buf, field_number, &raw[pos..end]);
                 pos = end;
             }
@@ -243,9 +291,15 @@ fn normalize_masked_amount(raw: &[u8]) -> Vec<u8> {
             }
             (_, 1) => {
                 if pos + 8 <= raw.len() {
-                    encode_fixed64(&mut buf, field_number, u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()));
+                    encode_fixed64(
+                        &mut buf,
+                        field_number,
+                        u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap()),
+                    );
                     pos += 8;
-                } else { break; }
+                } else {
+                    break;
+                }
             }
             _ => break,
         }
@@ -270,7 +324,9 @@ fn normalize_membership_element(raw: &[u8]) -> Vec<u8> {
                 let (len, new_pos) = decode_proto_varint(raw, pos);
                 pos = new_pos;
                 let end = pos + len as usize;
-                if end > raw.len() { break; }
+                if end > raw.len() {
+                    break;
+                }
                 let normalized = normalize_range(&raw[pos..end]);
                 encode_submessage(&mut buf, 1, &normalized);
                 pos = end;
@@ -279,12 +335,19 @@ fn normalize_membership_element(raw: &[u8]) -> Vec<u8> {
                 let (len, new_pos) = decode_proto_varint(raw, pos);
                 pos = new_pos;
                 let end = pos + len as usize;
-                if end > raw.len() { break; }
+                if end > raw.len() {
+                    break;
+                }
                 encode_submessage(&mut buf, field_number, &raw[pos..end]);
                 pos = end;
             }
-            (_, 0) => { let (_, new_pos) = decode_proto_varint(raw, pos); pos = new_pos; }
-            (_, 1) => { pos += 8; }
+            (_, 0) => {
+                let (_, new_pos) = decode_proto_varint(raw, pos);
+                pos = new_pos;
+            }
+            (_, 1) => {
+                pos += 8;
+            }
             _ => break,
         }
     }
@@ -305,13 +368,39 @@ fn normalize_range(raw: &[u8]) -> Vec<u8> {
         let wire_type = (tag & 7) as u8;
 
         match (field_number, wire_type) {
-            (1, 0) => { let (v, p) = decode_proto_varint(raw, pos); from_val = v; pos = p; }
-            (1, 1) => { if pos + 8 <= raw.len() { from_val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
-            (2, 0) => { let (v, p) = decode_proto_varint(raw, pos); to_val = v; pos = p; }
-            (2, 1) => { if pos + 8 <= raw.len() { to_val = u64::from_le_bytes(raw[pos..pos+8].try_into().unwrap()); pos += 8; } }
-            (_, 0) => { let (_, p) = decode_proto_varint(raw, pos); pos = p; }
-            (_, 1) => { pos += 8; }
-            (_, 2) => { let (l, p) = decode_proto_varint(raw, pos); pos = p + l as usize; }
+            (1, 0) => {
+                let (v, p) = decode_proto_varint(raw, pos);
+                from_val = v;
+                pos = p;
+            }
+            (1, 1) => {
+                if pos + 8 <= raw.len() {
+                    from_val = u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
+            (2, 0) => {
+                let (v, p) = decode_proto_varint(raw, pos);
+                to_val = v;
+                pos = p;
+            }
+            (2, 1) => {
+                if pos + 8 <= raw.len() {
+                    to_val = u64::from_le_bytes(raw[pos..pos + 8].try_into().unwrap());
+                    pos += 8;
+                }
+            }
+            (_, 0) => {
+                let (_, p) = decode_proto_varint(raw, pos);
+                pos = p;
+            }
+            (_, 1) => {
+                pos += 8;
+            }
+            (_, 2) => {
+                let (l, p) = decode_proto_varint(raw, pos);
+                pos = p + l as usize;
+            }
             _ => break,
         }
     }
@@ -387,27 +476,41 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
     outputs: &[BuiltTxOut],
     fee_token_id: u64,
 ) -> Result<(), JsError> {
-    use crate::digestible::{parse_proto_fields, find_field, find_all_fields,
-        digest_tx_out, McDigest, digest_membership_proof};
+    use crate::digestible::{
+        digest_membership_proof, digest_tx_out, find_all_fields, find_field, parse_proto_fields,
+        McDigest,
+    };
 
     let hex = |bytes: &[u8]| -> String { bytes.iter().map(|b| format!("{:02x}", b)).collect() };
 
     let tx_fields = parse_proto_fields(tx_bytes);
     let prefix_bytes = find_field(&tx_fields, 1)
-        .ok_or_else(|| JsError::new("Round-trip: missing TxPrefix"))?.data;
+        .ok_or_else(|| JsError::new("Round-trip: missing TxPrefix"))?
+        .data;
     let sig_bytes = find_field(&tx_fields, 2)
-        .ok_or_else(|| JsError::new("Round-trip: missing signature"))?.data;
+        .ok_or_else(|| JsError::new("Round-trip: missing signature"))?
+        .data;
 
     let prefix_fields = parse_proto_fields(prefix_bytes);
     let input_msgs = find_all_fields(&prefix_fields, 1);
     let output_msgs = find_all_fields(&prefix_fields, 2);
-    let parsed_fee = find_field(&prefix_fields, 3).map(|f| f.varint_value).unwrap_or(0);
-    let parsed_tombstone = find_field(&prefix_fields, 4).map(|f| f.varint_value).unwrap_or(0);
+    let parsed_fee = find_field(&prefix_fields, 3)
+        .map(|f| f.varint_value)
+        .unwrap_or(0);
+    let parsed_tombstone = find_field(&prefix_fields, 4)
+        .map(|f| f.varint_value)
+        .unwrap_or(0);
 
-    web_sys::console::log_1(&format!(
-        "[WASM round-trip] inputs={}, outputs={}, fee={}, tombstone={}",
-        input_msgs.len(), output_msgs.len(), parsed_fee, parsed_tombstone
-    ).into());
+    web_sys::console::log_1(
+        &format!(
+            "[WASM round-trip] inputs={}, outputs={}, fee={}, tombstone={}",
+            input_msgs.len(),
+            output_msgs.len(),
+            parsed_fee,
+            parsed_tombstone
+        )
+        .into(),
+    );
 
     let mut d = McDigest::new();
     d.agg_open(b"mobilecoin-tx-prefix", b"TxPrefix");
@@ -453,19 +556,27 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
     let round_trip_hash = d.finalize();
 
     if round_trip_hash != *expected_prefix_hash {
-        web_sys::console::log_1(&format!(
-            "[WASM round-trip] PREFIX HASH MISMATCH!\n  expected: {}\n  got:      {}",
-            hex(expected_prefix_hash), hex(&round_trip_hash)
-        ).into());
+        web_sys::console::log_1(
+            &format!(
+                "[WASM round-trip] PREFIX HASH MISMATCH!\n  expected: {}\n  got:      {}",
+                hex(expected_prefix_hash),
+                hex(&round_trip_hash)
+            )
+            .into(),
+        );
 
         let mut d_built = McDigest::new();
         d_built.seq_header(b"outputs", outputs.len());
         for output in outputs {
             crate::digestible::digest_built_tx_out(
                 &mut d_built,
-                &output.target_key, &output.public_key,
-                &output.commitment, output.masked_value,
-                &output.masked_token_id, &output.e_fog_hint, &output.e_memo,
+                &output.target_key,
+                &output.public_key,
+                &output.commitment,
+                output.masked_value,
+                &output.masked_token_id,
+                &output.e_fog_hint,
+                &output.e_memo,
             );
         }
         let built_hash = d_built.finalize();
@@ -484,13 +595,18 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
 
         return Err(JsError::new(&format!(
             "TxPrefix hash mismatch: built={} protobuf_roundtrip={}",
-            hex(expected_prefix_hash), hex(&round_trip_hash)
+            hex(expected_prefix_hash),
+            hex(&round_trip_hash)
         )));
     }
 
-    web_sys::console::log_1(&format!(
-        "[WASM round-trip] TxPrefix hash MATCHES: {}", hex(&round_trip_hash)
-    ).into());
+    web_sys::console::log_1(
+        &format!(
+            "[WASM round-trip] TxPrefix hash MATCHES: {}",
+            hex(&round_trip_hash)
+        )
+        .into(),
+    );
 
     let rt_extended = crate::digestible::compute_mlsag_signing_digest(
         &round_trip_hash,
@@ -504,19 +620,28 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
     );
 
     if rt_extended != *expected_signing_digest {
-        web_sys::console::log_1(&format!(
-            "[WASM round-trip] SIGNING DIGEST MISMATCH!\n  expected: {}\n  got:      {}",
-            hex(expected_signing_digest), hex(&rt_extended)
-        ).into());
+        web_sys::console::log_1(
+            &format!(
+                "[WASM round-trip] SIGNING DIGEST MISMATCH!\n  expected: {}\n  got:      {}",
+                hex(expected_signing_digest),
+                hex(&rt_extended)
+            )
+            .into(),
+        );
         return Err(JsError::new(&format!(
             "Signing digest mismatch: expected={} roundtrip={}",
-            hex(expected_signing_digest), hex(&rt_extended)
+            hex(expected_signing_digest),
+            hex(&rt_extended)
         )));
     }
 
-    web_sys::console::log_1(&format!(
-        "[WASM round-trip] Signing digest MATCHES: {}", hex(&rt_extended)
-    ).into());
+    web_sys::console::log_1(
+        &format!(
+            "[WASM round-trip] Signing digest MATCHES: {}",
+            hex(&rt_extended)
+        )
+        .into(),
+    );
 
     let sig_fields = parse_proto_fields(sig_bytes);
     let sig_pseudo_outputs = find_all_fields(&sig_fields, 2);
@@ -535,19 +660,29 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
         let po_inner = parse_proto_fields(po_field.data);
         let po_bytes = find_field(&po_inner, 1).map(|f| f.data).unwrap_or(&[]);
         if i < pseudo_output_refs.len() && po_bytes != pseudo_output_refs[i] {
-            web_sys::console::log_1(&format!(
-                "[WASM round-trip] pseudo_output[{}] MISMATCH: digest={} protobuf={}",
-                i, hex(pseudo_output_refs[i]), hex(po_bytes)
-            ).into());
+            web_sys::console::log_1(
+                &format!(
+                    "[WASM round-trip] pseudo_output[{}] MISMATCH: digest={} protobuf={}",
+                    i,
+                    hex(pseudo_output_refs[i]),
+                    hex(po_bytes)
+                )
+                .into(),
+            );
         }
     }
 
     for (i, rp_field) in sig_range_proofs.iter().enumerate() {
         if i < range_proofs.len() && rp_field.data != range_proofs[i] {
-            web_sys::console::log_1(&format!(
-                "[WASM round-trip] range_proofs[{}] MISMATCH: digest_len={} protobuf_len={}",
-                i, range_proofs[i].len(), rp_field.data.len()
-            ).into());
+            web_sys::console::log_1(
+                &format!(
+                    "[WASM round-trip] range_proofs[{}] MISMATCH: digest_len={} protobuf_len={}",
+                    i,
+                    range_proofs[i].len(),
+                    rp_field.data.len()
+                )
+                .into(),
+            );
         }
     }
 

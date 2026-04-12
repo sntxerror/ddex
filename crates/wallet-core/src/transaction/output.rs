@@ -1,20 +1,18 @@
 //! TxOut construction, memo building, fog hint encryption.
 
 use blake2::{Blake2b512, Digest};
-use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::CompressedRistretto;
+use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
 use sha2::Sha512;
 use wasm_bindgen::prelude::*;
 
 use super::{
-    Recipient, BuiltTxOut,
-    hash_to_scalar, decompress, random_scalar, token_generator,
-    ONETIME_KEY_HASH_TO_SCALAR, AMOUNT_SHARED_SECRET_TAG, AMOUNT_BLINDING_SALT,
-    AMOUNT_VALUE_INFO, AMOUNT_TOKEN_ID_INFO, AMOUNT_BLINDING_INFO,
-    MEMO_KEY_SALT, MEMO_DATA_LEN, MEMO_TYPE_AUTH_SENDER_WITH_PAYMENT_REQUEST,
-    MEMO_TYPE_DESTINATION, SENDER_MEMO_CREDENTIAL_DOMAIN,
+    decompress, hash_to_scalar, random_scalar, token_generator, BuiltTxOut, Recipient,
+    AMOUNT_BLINDING_INFO, AMOUNT_BLINDING_SALT, AMOUNT_SHARED_SECRET_TAG, AMOUNT_TOKEN_ID_INFO,
+    AMOUNT_VALUE_INFO, MEMO_DATA_LEN, MEMO_KEY_SALT, MEMO_TYPE_AUTH_SENDER_WITH_PAYMENT_REQUEST,
+    MEMO_TYPE_DESTINATION, ONETIME_KEY_HASH_TO_SCALAR, SENDER_MEMO_CREDENTIAL_DOMAIN,
 };
 
 /// Size of the encrypted fog hint (VersionedCryptoBox output).
@@ -86,10 +84,14 @@ pub(crate) fn compute_address_hash(view_public_key: &[u8], spend_public_key: &[u
 }
 
 /// Encrypt a 66-byte plaintext memo using XOR with HKDF-derived key.
-fn encrypt_memo(memo_plaintext: &[u8; MEMO_DATA_LEN], shared_secret: &CompressedRistretto) -> Result<Vec<u8>, JsError> {
+fn encrypt_memo(
+    memo_plaintext: &[u8; MEMO_DATA_LEN],
+    shared_secret: &CompressedRistretto,
+) -> Result<Vec<u8>, JsError> {
     let memo_hk = Hkdf::<Sha512>::new(Some(MEMO_KEY_SALT), shared_secret.as_bytes());
     let mut memo_key = vec![0u8; MEMO_DATA_LEN];
-    memo_hk.expand(b"", &mut memo_key)
+    memo_hk
+        .expand(b"", &mut memo_key)
         .map_err(|_| JsError::new("HKDF expand failed for memo key"))?;
 
     let mut e_memo = vec![0u8; MEMO_DATA_LEN];
@@ -100,7 +102,10 @@ fn encrypt_memo(memo_plaintext: &[u8; MEMO_DATA_LEN], shared_secret: &Compressed
 }
 
 /// Compute a confirmation number for a sent TxOut (HMAC-SHA256).
-pub(crate) fn compute_confirmation_number(shared_secret: &CompressedRistretto, tx_out_public_key: &[u8]) -> Vec<u8> {
+pub(crate) fn compute_confirmation_number(
+    shared_secret: &CompressedRistretto,
+    tx_out_public_key: &[u8],
+) -> Vec<u8> {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
@@ -163,7 +168,8 @@ pub(crate) fn build_tx_out_inner(
 
     // Pedersen commitment: value * H_token + blinding * G
     let h_token = token_generator(token_id);
-    let commitment = (Scalar::from(value) * h_token + blinding * RISTRETTO_BASEPOINT_POINT).compress();
+    let commitment =
+        (Scalar::from(value) * h_token + blinding * RISTRETTO_BASEPOINT_POINT).compress();
 
     // Fog hint
     let hint_view_pub = fog_hint_view_pub.unwrap_or(&recipient.view_public_key);
@@ -175,23 +181,27 @@ pub(crate) fn build_tx_out_inner(
         None => {
             let memo_hk = Hkdf::<Sha512>::new(Some(MEMO_KEY_SALT), shared_secret.as_bytes());
             let mut key = vec![0u8; MEMO_DATA_LEN];
-            memo_hk.expand(b"", &mut key)
+            memo_hk
+                .expand(b"", &mut key)
                 .map_err(|_| JsError::new("HKDF expand failed for memo key"))?;
             key
         }
     };
 
-    Ok((BuiltTxOut {
-        target_key: target_key.as_bytes().to_vec(),
-        public_key: tx_public_key.as_bytes().to_vec(),
-        masked_value,
-        masked_token_id: masked_token_id_val.to_le_bytes().to_vec(),
-        commitment: commitment.as_bytes().to_vec(),
-        e_fog_hint,
-        e_memo,
-        blinding: blinding.as_bytes().to_vec(),
-        value,
-    }, shared_secret))
+    Ok((
+        BuiltTxOut {
+            target_key: target_key.as_bytes().to_vec(),
+            public_key: tx_public_key.as_bytes().to_vec(),
+            masked_value,
+            masked_token_id: masked_token_id_val.to_le_bytes().to_vec(),
+            commitment: commitment.as_bytes().to_vec(),
+            e_fog_hint,
+            e_memo,
+            blinding: blinding.as_bytes().to_vec(),
+            value,
+        },
+        shared_secret,
+    ))
 }
 
 /// Build an encrypted fog hint using VersionedCryptoBox format (84 bytes).
@@ -199,7 +209,7 @@ fn build_fog_hint(
     recipient_view_pub: &[u8],
     fog_ingest_pubkey: Option<&[u8]>,
 ) -> Result<Vec<u8>, JsError> {
-    use aes_gcm::{Aes256Gcm, KeyInit, aead::AeadInPlace};
+    use aes_gcm::{aead::AeadInPlace, Aes256Gcm, KeyInit};
     use hkdf::SimpleHkdf;
 
     let mut hint = vec![0u8; ENCRYPTED_FOG_HINT_LEN];
@@ -228,7 +238,8 @@ fn build_fog_hint(
             let cipher = Aes256Gcm::new_from_slice(aes_key)
                 .map_err(|_| JsError::new("AES key init failed"))?;
             let nonce = aes_gcm::Nonce::from_slice(aes_nonce);
-            let tag = cipher.encrypt_in_place_detached(nonce, &[], &mut buffer)
+            let tag = cipher
+                .encrypt_in_place_detached(nonce, &[], &mut buffer)
                 .map_err(|_| JsError::new("AES-GCM encrypt failed"))?;
 
             hint[0..34].copy_from_slice(&buffer);
