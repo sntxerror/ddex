@@ -262,8 +262,12 @@ fn encode_tx_in(ring: &[RingMember]) -> Vec<u8> {
     for member in ring {
         // ring TxOut (field 1) — raw bytes from fog
         encode_submessage(&mut buf, 1, &member.tx_out_bytes);
-        // proof (field 2) — raw bytes from fog
-        encode_submessage(&mut buf, 2, &member.proof_bytes);
+    }
+    for member in ring {
+        // proof (field 2) — raw bytes from fog; skip if absent
+        if !member.proof_bytes.is_empty() {
+            encode_submessage(&mut buf, 2, &member.proof_bytes);
+        }
     }
 
     buf
