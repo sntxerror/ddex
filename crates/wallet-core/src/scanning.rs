@@ -437,7 +437,7 @@ pub struct KexRngSearchKeys {
 }
 
 /// KexRng20201124 PRF: Blake2b512("20201124" || secret || counter) -> first 16 bytes
-fn kex_rng_prf(secret: &[u8; 32], counter: u64) -> Vec<u8> {
+pub(crate) fn kex_rng_prf(secret: &[u8; 32], counter: u64) -> Vec<u8> {
     let mut hasher = Blake2b512::new();
     hasher.update(b"20201124");
     hasher.update(secret);
@@ -568,14 +568,14 @@ pub fn compute_key_image(
 // IMPORTANT: FixedTxOutSearchResult zero-pads ciphertext to 255 bytes.
 // The caller MUST truncate to the actual payload_length before calling this.
 
-const CRYPTO_BOX_FOOTER_SIZE: usize = 50;  // pubkey(32) + tag(16) + version(2)
+const CRYPTO_BOX_FOOTER_SIZE: usize = 50;
 const CRYPTO_BOX_PUBKEY_SIZE: usize = 32;
 const CRYPTO_BOX_TAG_SIZE: usize = 16;
-const CRYPTO_BOX_SALT: &[u8] = b"dei-salty-box";
-const CRYPTO_BOX_INFO: &[u8] = b"aead-key-iv";
+pub(crate) const CRYPTO_BOX_SALT: &[u8] = b"dei-salty-box";
+pub(crate) const CRYPTO_BOX_INFO: &[u8] = b"aead-key-iv";
 
 /// Core decryption logic for fog VersionedCryptoBox (testable without wasm_bindgen)
-fn decrypt_fog_ciphertext_inner(
+pub(crate) fn decrypt_fog_ciphertext_inner(
     view_private_key: &[u8],
     ciphertext: &[u8],
 ) -> Result<Vec<u8>, String> {
@@ -669,106 +669,4 @@ pub fn decrypt_fog_ciphertext(
 
     decrypt_fog_ciphertext_inner(c.as_bytes(), ciphertext)
         .map_err(|e| JsError::new(&e))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Test vector from MobileCoin fog/kex_rng/src/lib.rs test_vectors:
-    /// secret = ECDH(private_key_from([1u8;32]), pubkey_from([2u8;32]))
-    /// The PRF outputs for counters 0..4 must match the canonical values.
-    ///
-    /// However, we can directly test the PRF function with a known secret.
-    /// From kexrng20201124.rs: Blake2b512("20201124" || secret || counter.to_le_bytes())[..16]
-    #[test]
-    fn test_kex_rng_prf_deterministic() {
-        let secret = [0xABu8; 32];
-        let out0 = kex_rng_prf(&secret, 0);
-        let out1 = kex_rng_prf(&secret, 1);
-
-        assert_eq!(out0.len(), 16, "KexRng output must be 16 bytes");
-        assert_eq!(out1.len(), 16, "KexRng output must be 16 bytes");
-        assert_ne!(out0, out1, "Different counters must produce different outputs");
-
-        // Same inputs must produce same output (deterministic)
-        let out0_again = kex_rng_prf(&secret, 0);
-        assert_eq!(out0, out0_again, "PRF must be deterministic");
-    }
-
-    #[test]
-    fn test_kex_rng_prf_matches_tag() {
-        // Verify the tag "20201124" is used correctly by checking against
-        // a manual Blake2b512 computation
-        let secret = [1u8; 32];
-        let counter: u64 = 0;
-
-        let mut hasher = Blake2b512::new();
-        hasher.update(b"20201124");
-        hasher.update(&secret);
-        hasher.update(counter.to_le_bytes());
-        let result = hasher.finalize();
-        let expected: Vec<u8> = result[..16].to_vec();
-
-        let actual = kex_rng_prf(&secret, counter);
-        assert_eq!(actual, expected);
-    }
-
-    /// Round-trip test for fog CryptoBox: encrypt with view pubkey, decrypt with view privkey.
-    /// Mirrors VersionedCryptoBox from MobileCoin crypto/box/src/versioned.rs
-    #[test]
-    fn test_fog_crypto_box_round_trip() {
-        use aes_gcm::aead::AeadInPlace;
-
-        // Use deterministic scalars for testing (not secure, just for test)
-        let view_private = Scalar::from_bytes_mod_order([
-            1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,
-            17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,0
-        ]);
-        let view_public = (view_private * RISTRETTO_BASEPOINT_POINT).compress();
-        let view_private_bytes = view_private.as_bytes().to_vec();
-
-        let eph_private = Scalar::from_bytes_mod_order([
-            32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,
-            48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,0
-        ]);
-        let eph_public = (eph_private * RISTRETTO_BASEPOINT_POINT).compress();
-
-        // ECDH: shared_secret = eph_private * view_public
-        let view_pub_point = view_public.decompress().unwrap();
-        let shared_secret = (eph_private * view_pub_point).compress();
-
-        // HKDF-Blake2b512
-        let hkdf = SimpleHkdf::<Blake2b512>::new(Some(CRYPTO_BOX_SALT), shared_secret.as_bytes());
-        let mut okm = [0u8; 44];
-        hkdf.expand(CRYPTO_BOX_INFO, &mut okm).unwrap();
-        let aes_key = &okm[..32];
-        let aes_nonce_bytes = &okm[32..44];
-
-        // Encrypt a test plaintext
-        let plaintext = b"test TxOutRecord protobuf bytes here";
-        let mut buffer = plaintext.to_vec();
-        let cipher = Aes256Gcm::new_from_slice(aes_key).unwrap();
-        let nonce = Nonce::<Aes256Gcm>::from_slice(aes_nonce_bytes);
-        let tag = cipher.encrypt_in_place_detached(nonce, &[], &mut buffer).unwrap();
-
-        // Build ciphertext in VersionedCryptoBox format:
-        //   [encrypted_data] [ephemeral_pubkey(32)] [tag(16)] [major(1)] [minor(1)]
-        let mut ciphertext = Vec::new();
-        ciphertext.extend_from_slice(&buffer);
-        ciphertext.extend_from_slice(eph_public.as_bytes());
-        ciphertext.extend_from_slice(tag.as_slice());
-        ciphertext.push(1); // major version
-        ciphertext.push(0); // minor version
-
-        // Decrypt using our function
-        let decrypted = decrypt_fog_ciphertext_inner(&view_private_bytes, &ciphertext)
-            .expect("decryption should succeed");
-        assert_eq!(&decrypted, plaintext, "round-trip must recover original plaintext");
-
-        // Test with wrong key fails
-        let wrong_key = Scalar::from_bytes_mod_order([99u8; 32]);
-        let result = decrypt_fog_ciphertext_inner(wrong_key.as_bytes(), &ciphertext);
-        assert!(result.is_err(), "decryption with wrong key must fail");
-    }
 }

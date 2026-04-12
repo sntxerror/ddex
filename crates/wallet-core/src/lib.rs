@@ -5,3 +5,6 @@ mod digestible;
 mod bulletproofs;
 mod scanning;
 mod prost_verify;
+
+#[cfg(test)]
+mod tests;
