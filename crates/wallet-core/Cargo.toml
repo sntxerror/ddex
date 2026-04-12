@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 bip39 = "2.2.2"
 bs58 = "0.5"
 crc32fast = "1.4"
-wasm-bindgen = "=0.2.114"
+wasm-bindgen = "=0.2.118"
 
 # Bridge Rust's `rand` / `getrandom` to the browser's WebCrypto API
 getrandom = { version = "0.2", features = ["js"] }
