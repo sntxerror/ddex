@@ -105,6 +105,27 @@ interface GeneratedWalletCoreModule {
     accountKey: WasmAccountKey,
     index: bigint,
   ) => DerivedSubaddress
+  readonly create_signed_contingent_input: (
+    accountKey: WasmAccountKey,
+    input: OwnedSCIInput,
+    requiredOutputs: BuiltTxOut[],
+    maxTombstoneBlock: bigint,
+    blockVersion: number,
+  ) => SignedContingentInput
+  readonly validate_signed_contingent_input: (sci: SignedContingentInput) => void
+  readonly is_sci_spendable: (sci: SignedContingentInput) => boolean
+  readonly build_transaction_with_scis: (
+    scis: SignedContingentInput[],
+    accountKey: WasmAccountKey | null,
+    additionalInputs: OwnedTxOutInput[] | null,
+    fee: bigint,
+    tombstoneBlock: bigint,
+  ) => TxBuildResult
+  readonly serialize_sci_to_hex: (sci: SignedContingentInput) => string
+  readonly deserialize_sci_from_hex: (hex: string) => SignedContingentInput
+  readonly serialize_sci_to_bytes: (sci: SignedContingentInput) => Uint8Array
+  readonly deserialize_sci_from_bytes: (bytes: Uint8Array) => SignedContingentInput
+  readonly get_sci_key_image: (sci: SignedContingentInput) => string
 }
 
 type GeneratedModuleLoader = () => Promise<GeneratedWalletCoreModule>
@@ -298,6 +319,64 @@ export interface DerivedSubaddress {
   subaddress_index: number
 }
 
+// ── SCI (Signed Contingent Input) Types ──
+
+export interface RingMember {
+  target_key: number[]
+  public_key: number[]
+  commitment: number[]
+  tx_out_bytes: number[]
+  proof_bytes: number[]
+}
+
+export interface InputRules {
+  required_outputs: number[][]
+  max_tombstone_block: number
+}
+
+export interface UnmaskedAmount {
+  value: bigint
+  token_id: bigint
+  blinding: number[]
+}
+
+export interface RingMLSAG {
+  c_zero: number[]
+  responses: number[][]
+  key_image: number[]
+}
+
+export interface SignedContingentInput {
+  block_version: number
+  ring: RingMember[]
+  input_rules?: InputRules
+  mlsag: RingMLSAG
+  pseudo_output_unmasked: UnmaskedAmount
+  required_outputs_unmasked: UnmaskedAmount[]
+  tx_out_global_indices: bigint[]
+}
+
+export interface BuiltTxOut {
+  value: bigint
+  token_id: bigint
+  target_key: number[]
+  public_key: number[]
+  commitment: number[]
+  masked_value: bigint
+  masked_token_id: number[]
+  e_fog_hint: number[]
+  e_memo: number[]
+  blinding: number[]
+}
+
+export interface OwnedSCIInput {
+  real_index: number
+  ring: RingMember[]
+  subaddress_index: number
+  value: bigint
+  token_id: bigint
+}
+
 // ── Transaction-related wrappers ──
 
 export async function decodeB58Address(b58: string): Promise<DecodedAddress> {
@@ -339,4 +418,112 @@ export async function deriveSubaddress(
   const module = await loadGeneratedModule()
   await initWalletCore()
   return module.derive_subaddress(accountKey, index)
+}
+
+// ── SCI (Signed Contingent Input) Functions ──
+
+export async function createSignedContingentInput(
+  accountKey: WalletAccountKey,
+  input: OwnedSCIInput,
+  requiredOutputs: BuiltTxOut[],
+  maxTombstoneBlock: bigint,
+  blockVersion: number,
+): Promise<SignedContingentInput> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.create_signed_contingent_input(accountKey, input, requiredOutputs, maxTombstoneBlock, blockVersion)
+}
+
+export async function validateSignedContingentInput(sci: SignedContingentInput): Promise<void> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.validate_signed_contingent_input(sci)
+}
+
+export async function isSCISpendable(sci: SignedContingentInput): Promise<boolean> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.is_sci_spendable(sci)
+}
+
+export async function buildTransactionWithSCIs(
+  scis: SignedContingentInput[],
+  accountKey: WalletAccountKey | null,
+  additionalInputs: OwnedTxOutInput[] | null,
+  fee: bigint,
+  tombstoneBlock: bigint,
+): Promise<TxBuildResult> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.build_transaction_with_scis(scis, accountKey, additionalInputs, fee, tombstoneBlock)
+}
+
+export async function serializeSCIToHex(sci: SignedContingentInput): Promise<string> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  
+  // Convert BigInt fields to numbers for serde-wasm-bindgen
+  const sciForWasm = {
+    block_version: sci.block_version,
+    ring: sci.ring,
+    input_rules: sci.input_rules,
+    mlsag: sci.mlsag,
+    tx_out_global_indices: sci.tx_out_global_indices.map(n => Number(n)),
+    pseudo_output_unmasked: {
+      value: Number(sci.pseudo_output_unmasked.value),
+      token_id: Number(sci.pseudo_output_unmasked.token_id),
+      blinding: sci.pseudo_output_unmasked.blinding,
+    },
+    required_outputs_unmasked: sci.required_outputs_unmasked.map(u => ({
+      value: Number(u.value),
+      token_id: Number(u.token_id),
+      blinding: u.blinding,
+    })),
+  }
+  
+  return module.serialize_sci_to_hex(sciForWasm as any)
+}
+
+export async function deserializeSCIFromHex(hex: string): Promise<SignedContingentInput> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.deserialize_sci_from_hex(hex)
+}
+
+export async function serializeSCIToBytes(sci: SignedContingentInput): Promise<Uint8Array> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  
+  // Convert BigInt fields to numbers for serde-wasm-bindgen
+  const sciForWasm = {
+    block_version: sci.block_version,
+    ring: sci.ring,
+    input_rules: sci.input_rules,
+    mlsag: sci.mlsag,
+    tx_out_global_indices: sci.tx_out_global_indices.map(n => Number(n)),
+    pseudo_output_unmasked: {
+      value: Number(sci.pseudo_output_unmasked.value),
+      token_id: Number(sci.pseudo_output_unmasked.token_id),
+      blinding: sci.pseudo_output_unmasked.blinding,
+    },
+    required_outputs_unmasked: sci.required_outputs_unmasked.map(u => ({
+      value: Number(u.value),
+      token_id: Number(u.token_id),
+      blinding: u.blinding,
+    })),
+  }
+  
+  return module.serialize_sci_to_bytes(sciForWasm as any)
+}
+
+export async function deserializeSCIFromBytes(bytes: Uint8Array): Promise<SignedContingentInput> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.deserialize_sci_from_bytes(bytes)
+}
+
+export async function getSCIKeyImage(sci: SignedContingentInput): Promise<string> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.get_sci_key_image(sci)
 }

@@ -113,7 +113,7 @@ export function PublicOutlet() {
     return <Navigate replace to="/wallet" />
   }
 
-  if (storedVault && location.pathname !== '/unlock') {
+  if (storedVault && location.pathname !== '/unlock' && !location.pathname.startsWith('/debug/wasm')) {
     return <Navigate replace to="/unlock" />
   }
 

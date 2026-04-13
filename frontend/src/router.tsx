@@ -21,6 +21,10 @@ import { UnlockScreen } from './screens/Unlock/UnlockScreen'
 import { VaultScreen } from './screens/Vault/VaultScreen'
 import { SettingsScreen } from './screens/Settings/SettingsScreen'
 import { WelcomeScreen } from './screens/Welcome/WelcomeScreen'
+import { WasmTestIndex } from './screens/Test/WasmTestIndex'
+import { WasmKeysTest } from './screens/Test/WasmKeysTest'
+import { WasmTxTest } from './screens/Test/WasmTxTest'
+import { WasmSCITest } from './screens/Test/WasmSCITest'
 
 export const router = createBrowserRouter([
   {
@@ -41,6 +45,10 @@ export const router = createBrowserRouter([
           { path: 'onboard/pin', element: <CreatePassphraseScreen /> },
           { path: 'onboard/biometrics', element: <EnableBiometricsScreen /> },
           { path: 'onboard/complete', element: <OnboardCompleteScreen /> },
+          { path: 'debug/wasm', element: <WasmTestIndex /> },
+          { path: 'debug/wasm/keys', element: <WasmKeysTest /> },
+          { path: 'debug/wasm/tx', element: <WasmTxTest /> },
+          { path: 'debug/wasm/sci', element: <WasmSCITest /> },
         ],
       },
       {
