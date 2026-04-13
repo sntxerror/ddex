@@ -30,19 +30,29 @@ RUN echo 'time = { git = "https://github.com/time-rs/time.git", tag = "v0.3.36" 
 # ahash 0.7.8 fixes this by disabling stdsimd on unsupported nightlies (semver-compatible with ^0.7).
 RUN echo 'ahash = { git = "https://github.com/tkaitchuck/aHash.git", tag = "v0.7.8" }' >> Cargo.toml
 
+# Fix value-bag 1.0.0-alpha.9: TypeId const in patterns is a hard error on nightly-2026-01-01.
+# log 0.4.22 uses stable value-bag ^1.0 instead of the broken =1.0.0-alpha.9 alpha.
+RUN echo 'log = { git = "https://github.com/rust-lang/log.git", tag = "0.4.22" }' >> Cargo.toml
+
 # Fix schnorrkel-og: Scalar::from_bits removed in curve25519-dalek v4
 # Use the uprev-curve25519-dalek branch which ports to the new API
 RUN sed -i 's|schnorrkel-og = { git = "https://github.com/mobilecoinfoundation/schnorrkel.git", rev = "b76d8c3a50671b08af0874b25b2543d3302d794d" }|schnorrkel-og = { git = "https://github.com/mobilecoinfoundation/schnorrkel.git", rev = "2863b5649ed56b6de08d55caa9c360763bf7f786" }|' Cargo.toml
 
-# Deprecation and local definitions fixes:
-# We got a fixed commit, so we're patching by line number for now.
-# The added line should be right after `#![no_std]`
-RUN sed -i '3a\#![allow(deprecated)]' mobilecoin/util/repr-bytes/src/lib.rs
-RUN sed -i '3a\#![allow(deprecated)]' mobilecoin/crypto/digestible/src/lib.rs
-RUN sed -i '49a\#![allow(deprecated)]\n#![allow(non_local_definitions)]' mobilecoin/crypto/keys/src/lib.rs
-RUN sed -i '1a\#![allow(deprecated)]' mobilecoin/crypto/hashes/src/lib.rs
-RUN sed -i '5a\#![allow(deprecated)]\n#![allow(non_local_definitions)]' mobilecoin/core/types/src/lib.rs
-RUN sed -i '7a\#![allow(non_local_definitions)]' mobilecoin/core/src/lib.rs
+# Fix btree_drain_filter -> extract_if (stabilized in 1.91.0).
+# The stable API adds a range parameter: .extract_if(.., |entry: &Quote| ...)
+# quote-book/in-memory/src/lib.rs
+RUN sed -i '/btree_drain_filter/d' quote-book/in-memory/src/lib.rs \
+&& sed -i 's/\.drain_filter(|entry|/.extract_if(.., |entry: \&Quote|/g' quote-book/in-memory/src/lib.rs
+
+# Fix grpcio version mismatch: deqs workspace uses 0.12 but mobilecoin submodule (c18a291) uses 0.13.
+# Types from different semver-incompatible versions are treated as distinct.
+RUN sed -i 's/grpcio = "0.12.0"/grpcio = "0.13"/g' \
+    server/Cargo.toml api/Cargo.toml test-cli/Cargo.toml \
+    test-server/Cargo.toml liquidity-bot/Cargo.toml liquidity-bot/api/Cargo.toml
+
+    # Cap all lints at warn level so #![deny(warnings)] in mobilecoin crates won't
+# fail the build. Warnings are still printed in the build log for tracking.
+ENV RUSTFLAGS="--cap-lints=warn"
 
 
 ARG SGX_MODE=SW
