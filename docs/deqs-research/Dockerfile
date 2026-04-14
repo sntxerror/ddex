@@ -50,6 +50,10 @@ RUN sed -i 's/grpcio = "0.12.0"/grpcio = "0.13"/g' \
     server/Cargo.toml api/Cargo.toml test-cli/Cargo.toml \
     test-server/Cargo.toml liquidity-bot/Cargo.toml liquidity-bot/api/Cargo.toml
 
+# Fix mc-sgx-core-types version conflict: mc-attestation-verifier 0.4.4 depends on
+# mc-sgx-core-types 0.12.0, but the mobilecoin submodule pins 0.11.0.
+RUN find mobilecoin -name Cargo.toml -exec sed -i '/mc-sgx-/s/"0\.11\.0"/"0.12.0"/g' {} +
+
     # Cap all lints at warn level so #![deny(warnings)] in mobilecoin crates won't
 # fail the build. Warnings are still printed in the build log for tracking.
 ENV RUSTFLAGS="--cap-lints=warn"
@@ -62,7 +66,8 @@ ENV IAS_MODE=${IAS_MODE}
 
 RUN cargo +nightly-2026-01-01 build --release --bin deqs-server
 RUN ./build-protoset
-RUN cargo +nightly-2026-01-01 build --release --bin deqs-test-cli
+RUN protoc --proto_path=./liquidity-bot/api/proto --proto_path=./api/proto --proto_path=mobilecoin/api/proto --descriptor_set_out=liquidity-bot-admin.protoset --include_imports liquidity-bot/api/proto/liquidity_bot.proto
+RUN cargo +nightly-2026-01-01 build --release --bin deqs-liquidity-bot
 
 # Runtime stage
 FROM ubuntu:22.04 AS runtime
@@ -83,9 +88,10 @@ RUN curl --fail -sSL \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/deqs-server /usr/local/bin/deqs-server
-COPY --from=builder /app/target/release/deqs-test-cli /usr/local/bin/deqs-test-cli
+COPY --from=builder /app/target/release/deqs-liquidity-bot /usr/local/bin/deqs-liquidity-bot
 RUN mkdir /usr/local/share/deqs
 COPY --from=builder /app/deqs.protoset /usr/local/share/deqs/deqs.protoset
+COPY --from=builder /app/liquidity-bot-admin.protoset /usr/local/share/deqs/liquidity-bot-admin.protoset
 
 RUN mkdir -p /data/ledger /data/db
 

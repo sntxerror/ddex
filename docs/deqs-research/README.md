@@ -4,31 +4,18 @@
 
 We are trying to deploy [deqs-server](https://github.com/mobilecoinofficial/deqs) to be able to add the SCI `SubmitQuotes → GetQuotes → LiveUpdates → key-image cleanup` flow into the DDEX MVP app.
 
-The `deqs-server` hasn't been updated for 3 years, the last commit was `commit 948f212a9c1ad8cd5495d36f4b7d2139e2556bbd` dated `Thu Apr 20 10:21:59 2023 -0600`. As we'll see after compiling with `attempt 1`, the ecosystem has moved on and the project is in a bitrotten state.
+The `deqs-server` hasn't been updated for 3 years, the last commit was `commit 948f212a9c1ad8cd5495d36f4b7d2139e2556bbd` dated `Thu Apr 20 10:21:59 2023 -0600`.
 
-## Attempts to compile and run `deqs-server`
-
-### Attempt 1: Compiling from last commit
-
-> `Dockerfile`: Check the compilation details at `Dockerfile-last-commit` in this folder.
-
-You can build the binaries by running:
-```
-docker build --tag deqs-latest-commit . -f ./Dockerfile-last-commit
-```
-
-### Attempt 2: Compiling after updating mobilecoind to v6.1.1
-
-> `Dockerfile`: Check the compilation details, which include fixes and patcihng, at `Dockerfile-mobilecoind-v611` in this folder.
-
-You can build the binaries by running:
-```
-docker build --tag deqs-mobilecoind-v611 . -f ./Dockerfile-mobilecoind-v611
-```
-
-This attempt currently compiles, pending of runtime errors check.
+In order to compile the binaries of the project again, the submodule dependency on [mobilecoind](https://github.com/mobilecoinfoundation/mobilecoin) had to be updated to [v6.1.1](https://github.com/mobilecoinfoundation/mobilecoin/tree/v6.1.1).
 
 ## Overview of deployment artifacts
+
+> `Dockerfile`: Check the compilation details, which include fixes and patcihng, in the `Dockerfile` in this folder.
+
+The binaries can be built by running:
+```
+docker build --tag deqs . -f ./Dockerfile
+```
 
 The following files were moved manually to the server after compiling through the Dockerfile:
 - Ledger file: `data.mdb`. In the deployment, it stays in a separate drive currently mounted at `/mnt/HC_Volume_105354787`.
@@ -40,68 +27,119 @@ This means that the current deployment only uses Docker for the compilation stag
 
 ## How to run the commands in the current public deployment
 
-If you want to see the error state at length to understand better the issues found:
+> `NOTE`: All the services below running in `tmux` sessions will be eventually configured as `systemd service units`. To detach from a running tmux session with `ctrl+b` then `d`.
 
-- SSH into the deployment machine at `65.108.52.51`
+### Connecting to public server
+
+SSH into the deployment machine at `65.108.52.51`
 ```
 ssh root@65.108.52.51
 ```
 
-- Run the `deqs-server` with
+### Running `mobilecoind`
+
+`mobilecoind` should be running inside a `tmux` session:
+```
+tmux attach-session -t mobilecoind
+```
+
+If the service is not running, or you decide to stop it to run again, start it with
+```
+mobilecoind \
+   --ledger-db /mnt/synced-ledger-db \
+   --poll-interval 10 \
+   --peer mc://node1.prod.mobilecoinww.com/ \
+   --peer mc://node2.prod.mobilecoinww.com/ \
+   --chain-id main \
+   --tx-source-url https://ledger.mobilecoinww.com/node1.prod.mobilecoinww.com/ \
+   --tx-source-url https://ledger.mobilecoinww.com/node2.prod.mobilecoinww.com/ \
+   --mobilecoind-db /usr/local/share/mobilecoind/transaction-db-prod \
+   --fog-ingest-enclave-css /usr/local/share/mobilecoind/ingest-enclave.css \
+   --listen-uri insecure-mobilecoind://127.0.0.1:4444/
+```
+
+### Running `deqs-server`
+
+`deqs-server` should be running inside a `tmux` session:
+```
+tmux attach-session -t deqs-server
+```
+
+If the service is not running, or you decide to stop it to run again, start it with
 ```
 MC_LOG=trace \
 IAS_MODE=DEV \
 SGX_MODE=SW deqs-server \
   --client-listen-uri insecure-deqs://127.0.0.1:7000 \
   --db-path /tmp/quotes.db \
-  --ledger-db /mnt/HC_Volume_105354787
+  --ledger-db /mnt/synced-ledger-db
 ```
 
-- Run LiveUpdates
+### Running `LiveUpdates`
+
+Before creating any SCIs, you can run the `LiveUpdates` endpoint to receive new SCI creation posts:
 ```
 # grpcurl -d '' -vv -plaintext -protoset /usr/local/share/deqs/deqs.protoset     127.0.0.1:7000 deqs.DeqsClientAPI.LiveUpdates
 ```
 
-Which gives empty reply
+### Running `deqs-liquidity-bot`
 
+To create SCIs to exchange 1 MOB for 2 eUSD, we run:
 ```
-Resolved method descriptor:
-rpc LiveUpdates ( .deqs.LiveUpdatesRequest ) returns ( stream .deqs.LiveUpdate );
-
-Request metadata to send:
-(empty)
-```
-
-- Run SCI quote creation
-```
-MC_LOG=trace \
-IAS_MODE=DEV \
-SGX_MODE=SW deqs-test-cli \
-   --rng-seed 1 submit-quotes \
-   --deqs-uri insecure-deqs://127.0.0.1:7000 \
-   --ledger-db /mnt/HC_Volume_105354787
+deqs-liquidity-bot \
+    --deqs insecure-deqs://127.0.0.1:7000 \
+    --base-token-id 0 \
+    --counter-token-id 1 \
+    --swap-rate 2 \
+    --ledger-db /mnt/synced-ledger-db \
+    --account-key /usr/local/share/deqs/key.json \
+    --wallet-db /usr/local/share/deqs/wallet.db \
+    --admin-listen-uri insecure-mca://0.0.0.0:9090/
 ```
 
-Which errors out with stale quote message:
+This will create an SCI for each TxOut the account holds.
 
+To check whether some TxOut is pending of being included in an SCI, we query `GetPendingTxOuts`(if empty, all of them should appear in `GetListedTxOuts`):
 ```
-2026-04-13 01:48:49.578425491 UTC INFO deqs-test-cli started: { "GIT_COMMIT": "948f212-modified", "MOBILECOIN_GIT_COMMIT": "v6.0.2-10-gc18a29126", "PROFILE": "release", "DEBUG": "false", "OPT_LEVEL": "3", "DEBUG_ASSERTIONS": "false", "TARGET_ARCH": "x86_64", "TARGET_OS": "linux", "TARGET_FEATURE": "fxsr,sse,sse2,x87", "RUSTFLAGS": "?", "SGX_MODE": "SW" }, mc.app: deqs-test-cli, mc.module: mc_common::logger::loggers, mc.src: mobilecoin/common/src/logger/loggers/mod.rs:235
-2026-04-13 01:48:49.578494783 UTC WARN Creating insecure gRPC connection to 127.0.0.1:7000, mc.app: deqs-test-cli, mc.module: mc_util_grpc::grpcio_extensions, mc.src: mobilecoin/util/grpc/src/grpcio_extensions.rs:48
-2026-04-13 01:48:49.578528792 UTC INFO Ledger db is currently at version: MetadataVersion { database_format_version: 20220921, created_by_crate_version: "6.1.1", _s: LedgerDbMetadataStoreSettings }, mc.app: deqs-test-cli, mc.module: mc_ledger_db::ledger_db, mc.src: mobilecoin/ledger/db/src/ledger_db.rs:446
-2026-04-13 01:48:49.578554728 UTC INFO Generating 1 SCIs..., mc.app: deqs-test-cli, mc.module: deqs_test_cli, mc.src: test-cli/src/bin/main.rs:157
-2026-04-13 01:48:49.758573714 UTC INFO Submitting 1 SCIs..., mc.app: deqs-test-cli, mc.module: deqs_test_cli, mc.src: test-cli/src/bin/main.rs:186
-status_codes: QUOTE_IS_STALE
-error_messages: "Quote has a spent keyimage"
-quotes {
+grpcurl -plaintext \
+  -protoset /usr/local/share/deqs/liquidity-bot-admin.protoset \
+  localhost:9090 deqs.DeqsLiquidityBotAdminAPI.GetPendingTxOuts
+```
+
+To see the transaction included in SCIs, we query `GetListedTxOuts`:
+```
+grpcurl -plaintext \
+  -protoset /usr/local/share/deqs/liquidity-bot-admin.protoset \
+  localhost:9090 deqs.DeqsLiquidityBotAdminAPI.GetListedTxOuts
+```
+
+To see the Quotes to exchange MOB for eUSD created by DEQS, we run `GetQuotes` with:
+```
+grpcurl -plaintext -protoset /usr/local/share/deqs/deqs.protoset \
+    -d '{"pair": {"base_token_id": 0, "counter_token_id": 1}, "base_range_min": 0, "base_range_max": "18446744073709551615", "limit": 100}' \
+    localhost:7000 deqs.DeqsClientAPI.GetQuotes
+```
+
+#### How does the liquidity bot work?
+
+The liquidity bot works with a specific key file with Mobilecoin credentials and self managed wallet file. The key file has the following shape:
+The account-key file needs the following shape:
+```
+{
+  "mnemonic": "word1 word2 word3 ... word24",
+  "account_index": 0,
+  "fog_report_url": null,
+  "fog_report_id": null,
+  "fog_authority_spki": null
 }
 ```
 
+To run SCIs for different users, we would have to manage these as separate files and properly link to them when running the liquidity bot service for each user.
+
+It is important to reiterate, that the current bot mode of operation is to create an SCI for each TxOut owned by the account holder. The bot code can be used for future steps where we would like control about which specific quantity to swap for another coin.
+
 ### Next steps
 
-`deqs-test-cli` does not help with creating real quotes, it's meant only for testing purposes.
+To integrate DDEX with DEQS the next steps are:
 
-To integrate with DEQS the next steps are:
-
-- Deploy mobilecoind and let it running to have a synced ledger database locally accessible.
-- Prepare documentation on how to use `deqs-liquidity-bot`
 - Create shim server to proxy HTTPS requests to command line.
