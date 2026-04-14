@@ -32,6 +32,7 @@ fn make_test_tx() -> BuiltTransaction {
 
     let signed_input = SignedInput {
         ring: vec![ring_member],
+        input_rules: None,
         pseudo_output: vec![0x55; 32],
         mlsag,
     };

@@ -12,7 +12,8 @@ use curve25519_dalek::scalar::Scalar;
 
 use crate::sci::{encode_tx_out, InputRules, SignedContingentInput, UnmaskedAmount};
 use crate::transaction::{
-    build_tx_out_inner, random_scalar, token_generator, Recipient, RingMember, TOKEN_ID_MOB,
+    build_tx_out_inner, compute_tx_prefix_hash, encode_tx_out as encode_wire_tx_out, random_scalar,
+    token_generator, BuiltTxOut, Recipient, RingMember, TOKEN_ID_MOB,
 };
 
 /// Helper to serialize to hex string
@@ -77,6 +78,9 @@ fn alice_creates_sci(bob_recipient: &Recipient) -> SignedContingentInput {
         input_rules: Some(InputRules {
             required_outputs: vec![encode_tx_out(&alice_desired_output)],
             max_tombstone_block: 2000,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         }),
         mlsag: alice_mlsag,
         pseudo_output_unmasked: UnmaskedAmount {
@@ -137,6 +141,9 @@ fn bob_creates_sci(alice_recipient: &Recipient) -> SignedContingentInput {
         input_rules: Some(InputRules {
             required_outputs: vec![encode_tx_out(&bob_desired_output)],
             max_tombstone_block: 2000,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         }),
         mlsag: bob_mlsag,
         pseudo_output_unmasked: UnmaskedAmount {
@@ -262,4 +269,52 @@ fn test_sci_hex_encoding() {
 
     let decoded = from_hex(&hex).expect("decode failed");
     assert_eq!(decoded, test_bytes);
+}
+
+#[test]
+fn test_tx_prefix_hash_changes_when_input_rules_present() {
+    let tx_out = BuiltTxOut {
+        target_key: vec![0x11; 32],
+        public_key: vec![0x22; 32],
+        masked_value: 123_456_789,
+        masked_token_id: vec![0x00; 8],
+        commitment: vec![0x33; 32],
+        e_fog_hint: vec![],
+        e_memo: vec![],
+        blinding: vec![0x44; 32],
+        value: 50_000_000,
+    };
+    let tx_out_bytes = encode_wire_tx_out(&tx_out);
+
+    let ring_member = RingMember {
+        target_key: tx_out.target_key.clone(),
+        public_key: tx_out.public_key.clone(),
+        commitment: tx_out.commitment.clone(),
+        tx_out_bytes: tx_out_bytes.clone(),
+        proof_bytes: vec![],
+    };
+
+    let hash_without_rules = compute_tx_prefix_hash(
+        &[(std::slice::from_ref(&ring_member), None)],
+        std::slice::from_ref(&tx_out),
+        400_000_000,
+        5000,
+    );
+
+    let rules = InputRules {
+        required_outputs: vec![tx_out_bytes],
+        max_tombstone_block: 5000,
+        partial_fill_outputs: Vec::new(),
+        partial_fill_change: None,
+        min_partial_fill_value: 0,
+    };
+
+    let hash_with_rules = compute_tx_prefix_hash(
+        &[(std::slice::from_ref(&ring_member), Some(&rules))],
+        std::slice::from_ref(&tx_out),
+        400_000_000,
+        5000,
+    );
+
+    assert_ne!(hash_without_rules, hash_with_rules);
 }

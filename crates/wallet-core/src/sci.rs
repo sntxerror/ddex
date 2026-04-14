@@ -82,6 +82,20 @@ pub struct InputRules {
     /// - Time-to-live on swap requests
     /// - Compatibility with fog outputs (which have tombstone limits)
     pub max_tombstone_block: u64,
+
+    /// Partial-fill outputs from MCIP-42.
+    /// Not currently used by the browser flow, but included for digest parity.
+    #[serde(default)]
+    pub partial_fill_outputs: Vec<Vec<u8>>,
+
+    /// Partial-fill change output from MCIP-42.
+    /// Not currently used by the browser flow, but included for digest parity.
+    #[serde(default)]
+    pub partial_fill_change: Option<Vec<u8>>,
+
+    /// Minimum fill value for partial fills.
+    #[serde(default)]
+    pub min_partial_fill_value: u64,
 }
 
 /// A signed contingent input represents a request to trade "this for that".
@@ -122,31 +136,34 @@ pub struct SignedContingentInput {
 // ── Compute hash of TxIn for contingent input signing ──
 /// When there are contingent input rules, the MLSAG signs over the digest of the TxIn
 /// (including the rules) rather than the full TxPrefix extended message digest.
-fn compute_tx_in_digest(ring: &[RingMember], input_rules: Option<&InputRules>) -> [u8; 32] {
+pub(crate) fn compute_tx_in_digest(ring: &[RingMember], input_rules: Option<&InputRules>) -> [u8; 32] {
     use crate::digestible::McDigest;
 
+    // Match MobileCoin TxIn::signed_digest(): use the standard digestible
+    // transcript and place the MCIP context on the root aggregate.
     let mut d = McDigest::new();
-    d.agg_open(b"", b"TxIn");
+    d.agg_open(b"mc-input-rules-digest", b"TxIn");
 
-    // ring (omitting membership proofs, as they can be updated later)
     if !ring.is_empty() {
         d.seq_header(b"ring", ring.len());
         for member in ring {
-            // Digest each TxOut in the ring
-            crate::digestible::digest_built_tx_out(
-                &mut d,
-                &member.target_key,
-                &member.public_key,
-                &member.commitment,
-                0,   // masked_value not needed for ring members
-                &[], // masked_token_id not needed
-                &[], // e_fog_hint not needed
-                &[], // e_memo not needed
-            );
+            if !member.tx_out_bytes.is_empty() {
+                crate::digestible::digest_tx_out(&mut d, &member.tx_out_bytes);
+            } else {
+                crate::digestible::digest_built_tx_out(
+                    &mut d,
+                    &member.target_key,
+                    &member.public_key,
+                    &member.commitment,
+                    0,
+                    &[],
+                    &[],
+                    &[],
+                );
+            }
         }
     }
 
-    // contingent_input_rules (if present)
     if let Some(rules) = input_rules {
         d.agg_open(b"input_rules", b"InputRules");
 
@@ -157,14 +174,26 @@ fn compute_tx_in_digest(ring: &[RingMember], input_rules: Option<&InputRules>) -
             }
         }
 
-        if rules.max_tombstone_block != 0 {
-            d.uint64_always(b"max_tombstone_block", rules.max_tombstone_block);
+        if !rules.partial_fill_outputs.is_empty() {
+            d.seq_header(b"partial_fill_outputs", rules.partial_fill_outputs.len());
+            for revealed_output_bytes in &rules.partial_fill_outputs {
+                d.bytes_primitive(b"", revealed_output_bytes);
+            }
         }
+
+        if let Some(change_bytes) = &rules.partial_fill_change {
+            if !change_bytes.is_empty() {
+                d.bytes_primitive(b"partial_fill_change", change_bytes);
+            }
+        }
+
+        d.uint64_always(b"max_tombstone_block", rules.max_tombstone_block);
+        d.uint64_always(b"min_partial_fill_value", rules.min_partial_fill_value);
 
         d.agg_close(b"input_rules", b"InputRules");
     }
 
-    d.agg_close(b"", b"TxIn");
+    d.agg_close(b"mc-input-rules-digest", b"TxIn");
     d.finalize()
 }
 
@@ -302,6 +331,9 @@ pub fn create_signed_contingent_input(
         Some(InputRules {
             required_outputs: required_output_bytes,
             max_tombstone_block,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         })
     } else {
         None

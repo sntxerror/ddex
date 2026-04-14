@@ -112,11 +112,27 @@ pub struct TxOut {
 }
 
 #[derive(Clone, Message)]
+pub struct InputRules {
+    #[prost(message, repeated, tag = "1")]
+    pub required_outputs: Vec<TxOut>,
+    #[prost(fixed64, tag = "2")]
+    pub max_tombstone_block: u64,
+    #[prost(bytes, repeated, tag = "3")]
+    pub partial_fill_outputs: Vec<Vec<u8>>,
+    #[prost(bytes, optional, tag = "4")]
+    pub partial_fill_change: Option<Vec<u8>>,
+    #[prost(fixed64, tag = "5")]
+    pub min_partial_fill_value: u64,
+}
+
+#[derive(Clone, Message)]
 pub struct TxIn {
     #[prost(message, repeated, tag = "1")]
     pub ring: Vec<TxOut>,
     #[prost(message, repeated, tag = "2")]
     pub proofs: Vec<TxOutMembershipProof>,
+    #[prost(message, optional, tag = "3")]
+    pub input_rules: Option<InputRules>,
 }
 
 #[derive(Clone, Message)]

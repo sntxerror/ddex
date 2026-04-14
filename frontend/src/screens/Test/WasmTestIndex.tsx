@@ -1,5 +1,5 @@
 import { Paper, Stack, Text, Button, SimpleGrid } from '@mantine/core'
-import { IconKey, IconTransferOut, IconSwitch3 } from '@tabler/icons-react'
+import { IconKey, IconTransferOut, IconSwitch3, IconArrowsExchange } from '@tabler/icons-react'
 import { useNavigate } from 'react-router'
 
 export function WasmTestIndex() {
@@ -14,7 +14,7 @@ export function WasmTestIndex() {
         Test MobileCoin WASM bindings for key generation, transaction building, and SCI atomic swaps.
       </Text>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="md">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
         <Paper p="md" withBorder>
           <Stack gap="md">
             <IconKey size={32} />
@@ -50,6 +50,19 @@ export function WasmTestIndex() {
             </Text>
             <Button onClick={() => navigate('/debug/wasm/sci')} variant="light">
               Run Test
+            </Button>
+          </Stack>
+        </Paper>
+
+        <Paper p="md" withBorder>
+          <Stack gap="md">
+            <IconArrowsExchange size={32} />
+            <Text fw={600}>SCI E2E Swap</Text>
+            <Text size="sm" c="dimmed">
+              End-to-end SCI atomic swap: create SCI, fill, submit to network, verify balances.
+            </Text>
+            <Button onClick={() => navigate('/debug/wasm/sci-e2e')} variant="light" color="green">
+              Run E2E Test
             </Button>
           </Stack>
         </Paper>

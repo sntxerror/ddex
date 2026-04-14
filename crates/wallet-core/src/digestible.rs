@@ -483,7 +483,7 @@ pub(crate) fn digest_built_tx_out(
 ///     // fee_token_id: #[digestible(omit)] — SKIPPED
 ///   }
 pub(crate) fn compute_tx_prefix_hash_merlin(
-    inputs: &[(&[crate::transaction::RingMember], &[u8])],  // (ring, pseudo_output) per input — pseudo_output NOT in hash
+    inputs: &[(&[crate::transaction::RingMember], Option<&crate::sci::InputRules>)],
     outputs: &[crate::transaction::BuiltTxOut],
     fee: u64,
     tombstone_block: u64,
@@ -495,7 +495,7 @@ pub(crate) fn compute_tx_prefix_hash_merlin(
     // ── inputs: Vec<TxIn> ──
     if !inputs.is_empty() {
         d.seq_header(b"inputs", inputs.len());
-        for (ring, _pseudo_output) in inputs {
+        for (ring, input_rules) in inputs {
             d.agg_open(b"", b"TxIn");
 
             // ring: Vec<TxOut>
@@ -508,7 +508,6 @@ pub(crate) fn compute_tx_prefix_hash_merlin(
 
             // proofs: Vec<TxOutMembershipProof>
             if !ring.is_empty() {
-                // Count non-empty proofs
                 let proof_count = ring.iter().filter(|m| !m.proof_bytes.is_empty()).count();
                 if proof_count > 0 {
                     d.seq_header(b"proofs", proof_count);
@@ -520,7 +519,35 @@ pub(crate) fn compute_tx_prefix_hash_merlin(
                 }
             }
 
-            // input_rules: Option<InputRules> — None for basic transfers, allow_omit skips
+            if let Some(rules) = input_rules {
+                d.agg_open(b"input_rules", b"InputRules");
+
+                if !rules.required_outputs.is_empty() {
+                    d.seq_header(b"required_outputs", rules.required_outputs.len());
+                    for output_bytes in &rules.required_outputs {
+                        digest_tx_out(&mut d, output_bytes);
+                    }
+                }
+
+                if !rules.partial_fill_outputs.is_empty() {
+                    d.seq_header(b"partial_fill_outputs", rules.partial_fill_outputs.len());
+                    for revealed_output_bytes in &rules.partial_fill_outputs {
+                        d.bytes_primitive(b"", revealed_output_bytes);
+                    }
+                }
+
+                if let Some(change_bytes) = &rules.partial_fill_change {
+                    if !change_bytes.is_empty() {
+                        d.bytes_primitive(b"partial_fill_change", change_bytes);
+                    }
+                }
+
+                d.uint64_always(b"max_tombstone_block", rules.max_tombstone_block);
+                d.uint64_always(b"min_partial_fill_value", rules.min_partial_fill_value);
+
+                d.agg_close(b"input_rules", b"InputRules");
+            }
+
             d.agg_close(b"", b"TxIn");
         }
     }
@@ -633,6 +660,7 @@ fn compute_extended_message_digest(
 fn digest_tx_out_summary(
     d: &mut McDigest,
     output: &crate::transaction::BuiltTxOut,
+    associated_to_input_rules: bool,
 ) {
     d.agg_open(b"", b"TxOutSummary");
 
@@ -650,10 +678,41 @@ fn digest_tx_out_summary(
     // public_key — ristretto
     d.ristretto(b"public_key", &output.public_key);
 
-    // associated_to_input_rules — bool (always false for basic transactions)
-    d.bool_primitive(b"associated_to_input_rules", false);
+    // associated_to_input_rules — bool
+    d.bool_primitive(b"associated_to_input_rules", associated_to_input_rules);
 
     d.agg_close(b"", b"TxOutSummary");
+}
+
+fn compute_input_rules_digest(rules: &crate::sci::InputRules) -> [u8; 32] {
+    let mut d = McDigest::new();
+    d.agg_open(b"mc-input-rules", b"InputRules");
+
+    if !rules.required_outputs.is_empty() {
+        d.seq_header(b"required_outputs", rules.required_outputs.len());
+        for output_bytes in &rules.required_outputs {
+            digest_tx_out(&mut d, output_bytes);
+        }
+    }
+
+    if !rules.partial_fill_outputs.is_empty() {
+        d.seq_header(b"partial_fill_outputs", rules.partial_fill_outputs.len());
+        for revealed_output_bytes in &rules.partial_fill_outputs {
+            d.bytes_primitive(b"", revealed_output_bytes);
+        }
+    }
+
+    if let Some(change_bytes) = &rules.partial_fill_change {
+        if !change_bytes.is_empty() {
+            d.bytes_primitive(b"partial_fill_change", change_bytes);
+        }
+    }
+
+    d.uint64_always(b"max_tombstone_block", rules.max_tombstone_block);
+    d.uint64_always(b"min_partial_fill_value", rules.min_partial_fill_value);
+
+    d.agg_close(b"mc-input-rules", b"InputRules");
+    d.finalize()
 }
 
 /// Digest a TxInSummary into the Merlin transcript.
@@ -664,14 +723,20 @@ fn digest_tx_out_summary(
 /// }
 fn digest_tx_in_summary(
     d: &mut McDigest,
-    pseudo_output_commitment: &[u8],  // 32 bytes
+    pseudo_output_commitment: &[u8],
+    input_rules_digest: Option<&[u8]>,
 ) {
     d.agg_open(b"", b"TxInSummary");
 
     // pseudo_output_commitment — CompressedCommitment (transparent → ristretto)
     d.ristretto(b"pseudo_output_commitment", pseudo_output_commitment);
 
-    // input_rules_digest — Vec<u8> (allow_omit, empty for basic tx → skipped)
+    // input_rules_digest — Vec<u8> (allow_omit)
+    if let Some(digest) = input_rules_digest {
+        if !digest.is_empty() {
+            d.bytes_primitive(b"input_rules_digest", digest);
+        }
+    }
 
     d.agg_close(b"", b"TxInSummary");
 }
@@ -682,9 +747,10 @@ fn digest_tx_in_summary(
 /// Matches MobileCoin's `compute_mlsag_signing_digest()` for block version >= 3.
 pub(crate) fn compute_mlsag_signing_digest(
     tx_prefix_hash: &[u8; 32],
-    pseudo_output_commitments: &[&[u8]],     // each 32 bytes (CompressedRistretto)
-    range_proof_bytes: &[u8],                // single combined proof (block v2, empty for v3+)
-    range_proofs: &[&[u8]],                 // per-token-id proofs (block v3+, empty for v2)
+    pseudo_output_commitments: &[&[u8]],
+    input_rules: &[Option<&crate::sci::InputRules>],
+    range_proof_bytes: &[u8],
+    range_proofs: &[&[u8]],
     outputs: &[crate::transaction::BuiltTxOut],
     fee: u64,
     fee_token_id: u64,
@@ -707,19 +773,41 @@ pub(crate) fn compute_mlsag_signing_digest(
     // tx_summary: TxSummary → Digestible aggregate
     d.agg_open(b"tx_summary", b"TxSummary");
 
-    // outputs: Vec<TxOutSummary>
+    // Determine which outputs are associated with any input rules.
+    let associated_outputs: Vec<(Vec<u8>, Vec<u8>)> = input_rules
+        .iter()
+        .filter_map(|rules| *rules)
+        .flat_map(|rules| {
+            rules.required_outputs.iter().filter_map(|output_bytes| {
+                let fields = parse_proto_fields(output_bytes);
+                let amount_or_masked = find_field(&fields, 1).or_else(|| find_field(&fields, 6))?;
+                let _ = amount_or_masked;
+                let target_key = extract_ristretto_bytes(find_field(&fields, 2)?.data);
+                let public_key = extract_ristretto_bytes(find_field(&fields, 3)?.data);
+                Some((target_key, public_key))
+            })
+        })
+        .collect();
+
     if !outputs.is_empty() {
         d.seq_header(b"outputs", outputs.len());
         for output in outputs {
-            digest_tx_out_summary(&mut d, output);
+            let associated = associated_outputs.iter().any(|(target_key, public_key)| {
+                target_key.as_slice() == output.target_key.as_slice()
+                    && public_key.as_slice() == output.public_key.as_slice()
+            });
+            digest_tx_out_summary(&mut d, output, associated);
         }
     }
 
-    // inputs: Vec<TxInSummary> (one per pseudo_output)
     if !pseudo_output_commitments.is_empty() {
         d.seq_header(b"inputs", pseudo_output_commitments.len());
-        for po in pseudo_output_commitments {
-            digest_tx_in_summary(&mut d, po);
+        for (idx, po) in pseudo_output_commitments.iter().enumerate() {
+            let digest = input_rules
+                .get(idx)
+                .and_then(|rules| *rules)
+                .map(compute_input_rules_digest);
+            digest_tx_in_summary(&mut d, po, digest.as_ref().map(|bytes| bytes.as_slice()));
         }
     }
 

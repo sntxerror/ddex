@@ -18,6 +18,8 @@ use curve25519_dalek::scalar::Scalar;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+use crate::sci::InputRules;
+
 // Re-export for tests and other modules that need them
 // These are only used in tests, so allow unused in non-test builds
 #[allow(unused_imports)]
@@ -131,6 +133,7 @@ pub struct RingMLSAG {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SignedInput {
     pub ring: Vec<RingMember>,
+    pub input_rules: Option<InputRules>,
     pub pseudo_output: Vec<u8>,
     pub mlsag: RingMLSAG,
 }
@@ -208,7 +211,7 @@ pub(crate) fn random_scalar() -> Scalar {
 
 /// Compute the TxPrefix hash (message signed by MLSAG).
 pub(crate) fn compute_tx_prefix_hash(
-    inputs: &[(&[RingMember], &[u8])],
+    inputs: &[(&[RingMember], Option<&InputRules>)],
     outputs: &[BuiltTxOut],
     fee: u64,
     tombstone_block: u64,

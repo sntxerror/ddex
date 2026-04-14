@@ -2,7 +2,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use super::{BuiltTransaction, BuiltTxOut, RingMLSAG, RingMember, TOKEN_ID_MOB};
+use super::{BuiltTransaction, BuiltTxOut, RingMLSAG, SignedInput, TOKEN_ID_MOB};
 use crate::proto::{
     encode_fixed64, encode_packed_fixed64, encode_proto_bytes, encode_submessage, encode_varint,
     encode_varint_field,
@@ -73,16 +73,30 @@ fn encode_ring_mlsag(mlsag: &RingMLSAG) -> Vec<u8> {
 }
 
 /// Encode a TxIn as protobuf.
-fn encode_tx_in(ring: &[RingMember]) -> Vec<u8> {
+fn encode_tx_in(input: &SignedInput) -> Vec<u8> {
     let mut buf = Vec::new();
 
-    for member in ring {
+    for member in &input.ring {
         encode_submessage(&mut buf, 1, &member.tx_out_bytes);
     }
-    for member in ring {
+    for member in &input.ring {
         if !member.proof_bytes.is_empty() {
             encode_submessage(&mut buf, 2, &member.proof_bytes);
         }
+    }
+
+    if let Some(rules) = &input.input_rules {
+        let mut rules_buf = Vec::new();
+
+        for output_bytes in &rules.required_outputs {
+            encode_submessage(&mut rules_buf, 1, output_bytes);
+        }
+
+        if rules.max_tombstone_block != 0 {
+            encode_fixed64(&mut rules_buf, 2, rules.max_tombstone_block);
+        }
+
+        encode_submessage(&mut buf, 3, &rules_buf);
     }
 
     buf
@@ -420,7 +434,7 @@ pub(crate) fn encode_tx(tx: &BuiltTransaction) -> Vec<u8> {
     let mut prefix = Vec::new();
 
     for input in &tx.inputs {
-        let tx_in = encode_tx_in(&input.ring);
+        let tx_in = encode_tx_in(input);
         encode_submessage(&mut prefix, 1, &tx_in);
     }
 
@@ -471,6 +485,7 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
     tombstone_block: u64,
     expected_signing_digest: &[u8; 32],
     pseudo_output_refs: &[&[u8]],
+    input_rules: &[Option<&crate::sci::InputRules>],
     range_proof_bytes: &[u8],
     range_proofs: &[&[u8]],
     outputs: &[BuiltTxOut],
@@ -521,6 +536,7 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
             let tx_in_fields = parse_proto_fields(input_field.data);
             let ring_outs = find_all_fields(&tx_in_fields, 1);
             let proofs = find_all_fields(&tx_in_fields, 2);
+            let input_rules = find_field(&tx_in_fields, 3);
 
             d.agg_open(b"", b"TxIn");
 
@@ -536,6 +552,58 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
                 for proof_field in &proofs {
                     digest_membership_proof(&mut d, proof_field.data);
                 }
+            }
+
+            if let Some(rules_field) = input_rules {
+                let rules_fields = parse_proto_fields(rules_field.data);
+                let required_outputs = find_all_fields(&rules_fields, 1);
+                let partial_fill_outputs = find_all_fields(&rules_fields, 3);
+                let partial_fill_change = find_field(&rules_fields, 4);
+                let max_tombstone_block = find_field(&rules_fields, 2)
+                    .map(|f| {
+                        if f.wire_type == 1 {
+                            f.fixed64_value
+                        } else {
+                            f.varint_value
+                        }
+                    })
+                    .unwrap_or(0);
+                let min_partial_fill_value = find_field(&rules_fields, 5)
+                    .map(|f| {
+                        if f.wire_type == 1 {
+                            f.fixed64_value
+                        } else {
+                            f.varint_value
+                        }
+                    })
+                    .unwrap_or(0);
+
+                d.agg_open(b"input_rules", b"InputRules");
+
+                if !required_outputs.is_empty() {
+                    d.seq_header(b"required_outputs", required_outputs.len());
+                    for output_field in &required_outputs {
+                        digest_tx_out(&mut d, output_field.data);
+                    }
+                }
+
+                if !partial_fill_outputs.is_empty() {
+                    d.seq_header(b"partial_fill_outputs", partial_fill_outputs.len());
+                    for output_field in &partial_fill_outputs {
+                        d.bytes_primitive(b"", output_field.data);
+                    }
+                }
+
+                if let Some(change_field) = partial_fill_change {
+                    if !change_field.data.is_empty() {
+                        d.bytes_primitive(b"partial_fill_change", change_field.data);
+                    }
+                }
+
+                d.uint64_always(b"max_tombstone_block", max_tombstone_block);
+                d.uint64_always(b"min_partial_fill_value", min_partial_fill_value);
+
+                d.agg_close(b"input_rules", b"InputRules");
             }
 
             d.agg_close(b"", b"TxIn");
@@ -611,6 +679,7 @@ pub(super) fn verify_tx_prefix_hash_round_trip(
     let rt_extended = crate::digestible::compute_mlsag_signing_digest(
         &round_trip_hash,
         pseudo_output_refs,
+        input_rules,
         range_proof_bytes,
         range_proofs,
         outputs,

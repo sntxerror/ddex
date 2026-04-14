@@ -5,6 +5,7 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
+use serde::Serialize;
 use sha2::Sha512;
 use wasm_bindgen::prelude::*;
 
@@ -255,4 +256,36 @@ fn build_fog_hint(
     }
 
     Ok(hint)
+}
+
+/// Build a TxOut for a recipient (WASM export).
+///
+/// Creates a complete TxOut with all masked fields, fog hint, and memo.
+/// The returned BuiltTxOut includes the blinding factor, which is needed
+/// for SCI required outputs and range proofs.
+///
+/// # Arguments
+/// * `recipient_js` - Recipient with view_public_key, spend_public_key, fog_report_url
+/// * `value` - Amount in picoMOB
+/// * `token_id` - Token type (0 = MOB)
+/// * `fog_ingest_pubkey_js` - Optional 32-byte fog ingest pubkey (null if no fog)
+#[wasm_bindgen]
+pub fn build_tx_out(
+    recipient_js: JsValue,
+    value: u64,
+    token_id: u64,
+    fog_ingest_pubkey_js: JsValue,
+) -> Result<JsValue, JsError> {
+    let recipient: super::Recipient = serde_wasm_bindgen::from_value(recipient_js)?;
+    let fog_pk: Option<Vec<u8>> = serde_wasm_bindgen::from_value(fog_ingest_pubkey_js)?;
+    let fog_pk_ref = fog_pk.as_deref();
+
+    let (tx_out, _shared_secret) =
+        build_tx_out_inner(&recipient, value, token_id, fog_pk_ref, None, None)?;
+
+    // Use bigint-aware serializer because masked_value (u64) can exceed
+    // Number.MAX_SAFE_INTEGER after XOR masking.
+    let serializer = serde_wasm_bindgen::Serializer::new()
+        .serialize_large_number_types_as_bigints(true);
+    Ok(tx_out.serialize(&serializer).map_err(|e| JsError::new(&e.to_string()))?)
 }

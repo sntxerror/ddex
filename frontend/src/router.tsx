@@ -25,6 +25,7 @@ import { WasmTestIndex } from './screens/Test/WasmTestIndex'
 import { WasmKeysTest } from './screens/Test/WasmKeysTest'
 import { WasmTxTest } from './screens/Test/WasmTxTest'
 import { WasmSCITest } from './screens/Test/WasmSCITest'
+import { WasmSCIE2ETest } from './screens/Test/WasmSCIE2ETest'
 
 export const router = createBrowserRouter([
   {
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
           { path: 'debug/wasm/keys', element: <WasmKeysTest /> },
           { path: 'debug/wasm/tx', element: <WasmTxTest /> },
           { path: 'debug/wasm/sci', element: <WasmSCITest /> },
+          { path: 'debug/wasm/sci-e2e', element: <WasmSCIE2ETest /> },
         ],
       },
       {

@@ -126,6 +126,21 @@ interface GeneratedWalletCoreModule {
   readonly serialize_sci_to_bytes: (sci: SignedContingentInput) => Uint8Array
   readonly deserialize_sci_from_bytes: (bytes: Uint8Array) => SignedContingentInput
   readonly get_sci_key_image: (sci: SignedContingentInput) => string
+  readonly build_tx_out: (
+    recipient: Recipient,
+    value: bigint,
+    tokenId: bigint,
+    fogIngestPubkey: Uint8Array | null,
+  ) => BuiltTxOut
+  readonly fill_sci_transaction: (
+    sci: SignedContingentInput,
+    fillerAccountKey: WasmAccountKey,
+    fillerInputs: OwnedTxOutInput[],
+    fillerChangeRecipient: Recipient,
+    fee: bigint,
+    tombstoneBlock: bigint,
+    fogIngestPubkey: Uint8Array | null,
+  ) => TxBuildResult
 }
 
 type GeneratedModuleLoader = () => Promise<GeneratedWalletCoreModule>
@@ -526,4 +541,37 @@ export async function getSCIKeyImage(sci: SignedContingentInput): Promise<string
   const module = await loadGeneratedModule()
   await initWalletCore()
   return module.get_sci_key_image(sci)
+}
+
+export async function buildTxOut(
+  recipient: Recipient,
+  value: bigint,
+  tokenId: bigint,
+  fogIngestPubkey: Uint8Array | null,
+): Promise<BuiltTxOut> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.build_tx_out(recipient, value, tokenId, fogIngestPubkey)
+}
+
+export async function fillSCITransaction(
+  sci: SignedContingentInput,
+  fillerAccountKey: WalletAccountKey,
+  fillerInputs: OwnedTxOutInput[],
+  fillerChangeRecipient: Recipient,
+  fee: bigint,
+  tombstoneBlock: bigint,
+  fogIngestPubkey: Uint8Array | null,
+): Promise<TxBuildResult> {
+  const module = await loadGeneratedModule()
+  await initWalletCore()
+  return module.fill_sci_transaction(
+    sci,
+    fillerAccountKey,
+    fillerInputs,
+    fillerChangeRecipient,
+    fee,
+    tombstoneBlock,
+    fogIngestPubkey,
+  )
 }

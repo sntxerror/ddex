@@ -101,6 +101,9 @@ fn test_create_sci_structure() {
         input_rules: Some(InputRules {
             required_outputs: vec![encode_tx_out(&required_output)],
             max_tombstone_block: 1000,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         }),
         mlsag,
         pseudo_output_unmasked: UnmaskedAmount {
@@ -193,6 +196,9 @@ fn test_two_sci_structure_for_swap() {
         input_rules: Some(InputRules {
             required_outputs: vec![encode_tx_out(&alice_output)],
             max_tombstone_block: 2000,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         }),
         mlsag: alice_mlsag,
         pseudo_output_unmasked: UnmaskedAmount {
@@ -215,6 +221,9 @@ fn test_two_sci_structure_for_swap() {
         input_rules: Some(InputRules {
             required_outputs: vec![encode_tx_out(&bob_output)],
             max_tombstone_block: 2000,
+            partial_fill_outputs: Vec::new(),
+            partial_fill_change: None,
+            min_partial_fill_value: 0,
         }),
         mlsag: bob_mlsag,
         pseudo_output_unmasked: UnmaskedAmount {

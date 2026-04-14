@@ -262,10 +262,8 @@ pub fn build_transaction(
     }
 
     // Compute TxPrefix hash
-    let prefix_refs: Vec<(&[super::RingMember], &[u8])> = input_ring_data
-        .iter()
-        .map(|(ring, po)| (*ring, po.as_slice()))
-        .collect();
+    let prefix_refs: Vec<(&[super::RingMember], Option<&crate::sci::InputRules>)> =
+        input_ring_data.iter().map(|(ring, _po)| (*ring, None)).collect();
     let tx_prefix_hash = compute_tx_prefix_hash(&prefix_refs, &outputs, fee, tombstone_block);
 
     // Bulletproofs range proof
@@ -302,10 +300,12 @@ pub fn build_transaction(
         .iter()
         .map(|(_, po)| po.as_slice())
         .collect();
+    let no_input_rules: Vec<Option<&crate::sci::InputRules>> = vec![None; pseudo_output_refs.len()];
     let range_proofs_vec: Vec<&[u8]> = vec![range_proof_bytes.as_slice()];
     let mlsag_signing_digest = crate::digestible::compute_mlsag_signing_digest(
         &tx_prefix_hash,
         &pseudo_output_refs,
+        &no_input_rules,
         &[],
         &range_proofs_vec,
         &outputs,
@@ -362,6 +362,7 @@ pub fn build_transaction(
 
         signed_inputs.push(SignedInput {
             ring: input.ring.clone(),
+            input_rules: None,
             pseudo_output: pseudo_output.as_bytes().to_vec(),
             mlsag: mlsag_sig,
         });
@@ -409,6 +410,7 @@ pub fn build_transaction(
             tombstone_block,
             &mlsag_signing_digest,
             &pseudo_output_refs,
+            &no_input_rules,
             empty_range_proof_bytes,
             &range_proofs_vec,
             &tx.outputs,
@@ -419,6 +421,23 @@ pub fn build_transaction(
     // Prost canonicalization
     let tx_bytes = crate::prost_verify::canonicalize_tx_bytes(&tx_bytes)
         .map_err(|e| JsError::new(&format!("Prost canonicalization failed: {}", e)))?;
+
+    {
+        let empty_range_proof_bytes: &[u8] = &[];
+        verify_tx_prefix_hash_round_trip(
+            &tx_bytes,
+            &tx_prefix_hash,
+            fee,
+            tombstone_block,
+            &mlsag_signing_digest,
+            &pseudo_output_refs,
+            &no_input_rules,
+            empty_range_proof_bytes,
+            &range_proofs_vec,
+            &tx.outputs,
+            TOKEN_ID_MOB,
+        )?;
+    }
 
     let key_images: Vec<Vec<u8>> = tx
         .inputs
@@ -681,6 +700,7 @@ pub fn build_transaction_with_scis(
     for sci in &scis {
         signed_inputs.push(SignedInput {
             ring: sci.ring.clone(),
+            input_rules: sci.input_rules.clone(),
             pseudo_output: {
                 // Reconstruct pseudo-output commitment from unmasked amount
                 let h_token = token_generator(sci.pseudo_output_unmasked.token_id);
@@ -757,10 +777,11 @@ pub fn build_transaction_with_scis(
     );
 
     // Compute TxPrefix hash
-    let input_ring_data: Vec<(&[super::RingMember], &[u8])> = signed_inputs
-        .iter()
-        .map(|si| (si.ring.as_slice(), si.pseudo_output.as_slice()))
-        .collect();
+    let input_ring_data: Vec<(&[super::RingMember], Option<&crate::sci::InputRules>)> =
+        signed_inputs
+            .iter()
+            .map(|si| (si.ring.as_slice(), si.input_rules.as_ref()))
+            .collect();
     let tx_prefix_hash = compute_tx_prefix_hash(&input_ring_data, &outputs, fee, tombstone_block);
 
     // Strip blinding from outputs for wire format
@@ -793,6 +814,469 @@ pub fn build_transaction_with_scis(
         tx_prefix_hash: tx_prefix_hash.to_vec(),
         key_images,
         confirmation_number: Vec::new(), // No confirmation number for SCI transactions
+    };
+
+    Ok(serde_wasm_bindgen::to_value(&result)?)
+}
+
+/// Fill a Signed Contingent Input by building a transaction that includes the SCI
+/// plus the filler's own regular inputs.
+///
+/// The filler (taker) provides their own inputs to cover the fee and receives
+/// whatever value the SCI releases beyond its required outputs.
+///
+/// # Arguments
+/// * `sci_js` - The SCI to fill (from the maker)
+/// * `filler_account_key_js` - Filler's account key (for signing their inputs)
+/// * `filler_inputs_js` - Filler's owned TxOut inputs (with rings)
+/// * `filler_change_recipient_js` - Where filler's change goes
+/// * `fee` - Transaction fee in picoMOB
+/// * `tombstone_block` - Maximum block height for transaction validity
+/// * `fog_ingest_pubkey_js` - Optional fog ingest pubkey for fog hints
+#[wasm_bindgen]
+pub fn fill_sci_transaction(
+    sci_js: JsValue,
+    filler_account_key_js: JsValue,
+    filler_inputs_js: JsValue,
+    filler_change_recipient_js: JsValue,
+    fee: u64,
+    tombstone_block: u64,
+    fog_ingest_pubkey_js: JsValue,
+) -> Result<JsValue, JsError> {
+    use crate::sci::{decode_tx_out, SignedContingentInput};
+
+    // ── 1. Deserialize inputs ──
+    let sci: SignedContingentInput = serde_wasm_bindgen::from_value(sci_js)?;
+
+    #[derive(Deserialize)]
+    struct AccountKeyParts {
+        view_private_key: Vec<u8>,
+        spend_private_key: Vec<u8>,
+    }
+    let account_key: AccountKeyParts = serde_wasm_bindgen::from_value(filler_account_key_js)?;
+    let view_bytes: [u8; 32] = account_key
+        .view_private_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| JsError::new("view key must be 32 bytes"))?;
+    let view_private = scalar_from_canonical(&view_bytes, "view")?;
+    let spend_bytes: [u8; 32] = account_key
+        .spend_private_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| JsError::new("spend key must be 32 bytes"))?;
+    let spend_private = scalar_from_canonical(&spend_bytes, "spend")?;
+
+    let filler_inputs: Vec<OwnedTxOutInput> =
+        serde_wasm_bindgen::from_value(filler_inputs_js)?;
+    let filler_change_recipient: super::Recipient =
+        serde_wasm_bindgen::from_value(filler_change_recipient_js)?;
+    let fog_ingest_pubkey: Option<Vec<u8>> =
+        serde_wasm_bindgen::from_value(fog_ingest_pubkey_js)?;
+    let fog_pk = fog_ingest_pubkey.as_deref();
+
+    if filler_inputs.is_empty() {
+        return Err(JsError::new(
+            "At least one filler input is required (for non-malleable signing)",
+        ));
+    }
+
+    // ── 2. Validate SCI tombstone ──
+    if let Some(rules) = &sci.input_rules {
+        if rules.max_tombstone_block > 0 && tombstone_block > rules.max_tombstone_block {
+            return Err(JsError::new(&format!(
+                "Tombstone block {} exceeds SCI maximum {}",
+                tombstone_block, rules.max_tombstone_block
+            )));
+        }
+    }
+
+    // ── 3. Extract required outputs from SCI ──
+    let mut required_outputs: Vec<super::BuiltTxOut> = Vec::new();
+    let mut required_output_values: u64 = 0;
+    if let Some(rules) = &sci.input_rules {
+        for (idx, output_bytes) in rules.required_outputs.iter().enumerate() {
+            let mut output = decode_tx_out(output_bytes)?;
+            if idx < sci.required_outputs_unmasked.len() {
+                let unmasked = &sci.required_outputs_unmasked[idx];
+                output.value = unmasked.value;
+                output.blinding = unmasked.blinding.clone();
+            }
+            required_output_values += output.value;
+            required_outputs.push(output);
+        }
+    }
+
+    // ── 4. Compute filler change amount ──
+    let filler_input_total: u64 = filler_inputs.iter().map(|i| i.value).sum();
+    let sci_input_value = sci.pseudo_output_unmasked.value;
+
+    let total_input = sci_input_value
+        .checked_add(filler_input_total)
+        .ok_or_else(|| JsError::new("Input value overflow"))?;
+    let total_required = required_output_values
+        .checked_add(fee)
+        .ok_or_else(|| JsError::new("Required + fee overflow"))?;
+
+    if total_input < total_required {
+        return Err(JsError::new(&format!(
+            "Insufficient total input: have {} picoMOB, need {} picoMOB (required={}, fee={})",
+            total_input, total_required, required_output_values, fee
+        )));
+    }
+
+    let filler_change_value = total_input - total_required;
+
+    // ── 5. Build filler change output ──
+    // Derive filler's default subaddress view pub for fog hint routing
+    let hs_0 = {
+        let mut hasher = Blake2b512::new();
+        hasher.update(b"mc_subaddress");
+        hasher.update(view_private.as_bytes());
+        hasher.update(Scalar::from(0u64).as_bytes());
+        Scalar::from_bytes_mod_order_wide(&hasher.finalize().into())
+    };
+    let d_0 = (hs_0 + spend_private) * RISTRETTO_BASEPOINT_POINT;
+    let default_subaddr_view_pub = (view_private * d_0).compress().as_bytes().to_vec();
+
+    let mut outputs: Vec<super::BuiltTxOut> = required_outputs;
+
+    if filler_change_value > 0 {
+        let (change_output, _) = build_tx_out_inner(
+            &filler_change_recipient,
+            filler_change_value,
+            TOKEN_ID_MOB,
+            fog_pk,
+            Some(&default_subaddr_view_pub),
+            None,
+        )?;
+        outputs.push(change_output);
+    }
+
+    // Sort outputs by public_key (MobileCoin requirement)
+    outputs.sort_by(|a, b| a.public_key.cmp(&b.public_key));
+
+    // ── 6. Sort filler input rings by public_key ──
+    let filler_inputs: Vec<OwnedTxOutInput> = filler_inputs
+        .into_iter()
+        .map(|input| {
+            let mut indexed_ring: Vec<(usize, super::RingMember)> =
+                input.ring.into_iter().enumerate().collect();
+            indexed_ring.sort_by(|a, b| a.1.public_key.cmp(&b.1.public_key));
+            let new_real_index = indexed_ring
+                .iter()
+                .position(|(orig_idx, _)| *orig_idx == input.real_index)
+                .expect("real_index must be in ring");
+            let sorted_ring: Vec<super::RingMember> =
+                indexed_ring.into_iter().map(|(_, m)| m).collect();
+            OwnedTxOutInput {
+                real_index: new_real_index,
+                ring: sorted_ring,
+                subaddress_index: input.subaddress_index,
+                value: input.value,
+                token_id: input.token_id,
+            }
+        })
+        .collect();
+
+    // ── 7. Compute blinding sums ──
+    // Balance: sum(pseudo_output_blindings) = sum(output_blindings)
+    let mut output_blinding_sum = Scalar::ZERO;
+    for o in &outputs {
+        let bytes: [u8; 32] = o
+            .blinding
+            .as_slice()
+            .try_into()
+            .map_err(|_| JsError::new("Invalid output blinding length"))?;
+        let s = Scalar::from_canonical_bytes(bytes)
+            .into_option()
+            .ok_or_else(|| JsError::new("Non-canonical output blinding"))?;
+        output_blinding_sum += s;
+    }
+
+    // SCI pseudo-output blinding is fixed
+    let sci_pseudo_blinding_bytes: [u8; 32] = sci
+        .pseudo_output_unmasked
+        .blinding
+        .as_slice()
+        .try_into()
+        .map_err(|_| JsError::new("Invalid SCI pseudo-output blinding length"))?;
+    let sci_pseudo_blinding = Scalar::from_canonical_bytes(sci_pseudo_blinding_bytes)
+        .into_option()
+        .ok_or_else(|| JsError::new("Non-canonical SCI pseudo-output blinding"))?;
+
+    // Filler pseudo-output blindings: must satisfy
+    // sci_pseudo_blinding + sum(filler_pseudo_blindings) = output_blinding_sum
+    let filler_blinding_target = output_blinding_sum - sci_pseudo_blinding;
+
+    let n_filler = filler_inputs.len();
+    let mut filler_pseudo_blindings = Vec::with_capacity(n_filler);
+    let mut filler_pseudo_sum = Scalar::ZERO;
+
+    for i in 0..n_filler {
+        if i < n_filler - 1 {
+            let pb = random_scalar();
+            filler_pseudo_sum += pb;
+            filler_pseudo_blindings.push(pb);
+        } else {
+            let last_pb = filler_blinding_target - filler_pseudo_sum;
+            filler_pseudo_blindings.push(last_pb);
+        }
+    }
+
+    // ── 8. Build all input data (SCI + filler) for tx prefix ──
+    let h_token = token_generator(TOKEN_ID_MOB);
+
+    // SCI pseudo-output commitment
+    let sci_pseudo_output = (Scalar::from(sci_input_value) * h_token
+        + sci_pseudo_blinding * RISTRETTO_BASEPOINT_POINT)
+        .compress();
+
+    // Collect all input ring+pseudo_output pairs
+    struct InputEntry {
+        ring: Vec<super::RingMember>,
+        input_rules: Option<crate::sci::InputRules>,
+        pseudo_output_bytes: Vec<u8>,
+        is_sci: bool,
+        filler_index: Option<usize>, // index into filler_inputs, if applicable
+    }
+
+    let mut all_inputs: Vec<InputEntry> = Vec::new();
+
+    // SCI input
+    all_inputs.push(InputEntry {
+        ring: sci.ring.clone(),
+        input_rules: sci.input_rules.clone(),
+        pseudo_output_bytes: sci_pseudo_output.as_bytes().to_vec(),
+        is_sci: true,
+        filler_index: None,
+    });
+
+    // Filler inputs
+    for (i, input) in filler_inputs.iter().enumerate() {
+        let pseudo_output = (Scalar::from(input.value) * h_token
+            + filler_pseudo_blindings[i] * RISTRETTO_BASEPOINT_POINT)
+            .compress();
+        all_inputs.push(InputEntry {
+            ring: input.ring.clone(),
+            input_rules: None,
+            pseudo_output_bytes: pseudo_output.as_bytes().to_vec(),
+            is_sci: false,
+            filler_index: Some(i),
+        });
+    }
+
+    // Sort inputs by first ring element's public_key
+    all_inputs.sort_by(|a, b| {
+        let a_pk = a.ring.first().map(|m| m.public_key.as_slice()).unwrap_or(&[]);
+        let b_pk = b.ring.first().map(|m| m.public_key.as_slice()).unwrap_or(&[]);
+        a_pk.cmp(b_pk)
+    });
+
+    // ── 9. Compute tx_prefix_hash ──
+    let prefix_refs: Vec<(&[super::RingMember], Option<&crate::sci::InputRules>)> = all_inputs
+        .iter()
+        .map(|e| (e.ring.as_slice(), e.input_rules.as_ref()))
+        .collect();
+    let tx_prefix_hash = compute_tx_prefix_hash(&prefix_refs, &outputs, fee, tombstone_block);
+
+    // ── 10. Compute range proof ──
+    let mut all_rp_values: Vec<u64> = Vec::new();
+    let mut all_rp_blindings: Vec<Scalar> = Vec::new();
+
+    for entry in &all_inputs {
+        if entry.is_sci {
+            all_rp_values.push(sci_input_value);
+            all_rp_blindings.push(sci_pseudo_blinding);
+        } else {
+            let fi = entry.filler_index.unwrap();
+            all_rp_values.push(filler_inputs[fi].value);
+            all_rp_blindings.push(filler_pseudo_blindings[fi]);
+        }
+    }
+    for output in &outputs {
+        all_rp_values.push(output.value);
+        let bytes: [u8; 32] = output.blinding.as_slice().try_into().unwrap();
+        all_rp_blindings.push(
+            Scalar::from_canonical_bytes(bytes)
+                .into_option()
+                .ok_or_else(|| JsError::new("Non-canonical output blinding in range proof"))?,
+        );
+    }
+
+    let mc_gens = crate::bulletproofs::PedersenGens::for_token(h_token);
+    let range_proof = crate::bulletproofs::prove_range_with_generators(
+        &all_rp_values,
+        &all_rp_blindings,
+        &mc_gens,
+    );
+    let range_proof_bytes = range_proof.to_bytes();
+
+    // ── 11. Compute MLSAG signing digest (for filler's regular inputs) ──
+    let pseudo_output_refs: Vec<&[u8]> = all_inputs
+        .iter()
+        .map(|e| e.pseudo_output_bytes.as_slice())
+        .collect();
+    let input_rules_refs: Vec<Option<&crate::sci::InputRules>> =
+        all_inputs.iter().map(|e| e.input_rules.as_ref()).collect();
+    let range_proofs_vec: Vec<&[u8]> = vec![range_proof_bytes.as_slice()];
+    let mlsag_signing_digest = crate::digestible::compute_mlsag_signing_digest(
+        &tx_prefix_hash,
+        &pseudo_output_refs,
+        &input_rules_refs,
+        &[],
+        &range_proofs_vec,
+        &outputs,
+        fee,
+        TOKEN_ID_MOB,
+        tombstone_block,
+    );
+
+    // ── 12. Sign filler's inputs, assemble all signed inputs ──
+    let mut signed_inputs: Vec<SignedInput> = Vec::new();
+
+    for entry in &all_inputs {
+        if entry.is_sci {
+            // SCI input: use pre-signed MLSAG and verify it against the
+            // final ring/rules before submitting.
+            let sci_message = crate::sci::compute_tx_in_digest(&entry.ring, entry.input_rules.as_ref());
+            let sci_pseudo_output = curve25519_dalek::ristretto::CompressedRistretto::from_slice(
+                &entry.pseudo_output_bytes,
+            )
+            .map_err(|_| JsError::new("Invalid SCI pseudo_output length"))?;
+            verify_mlsag(&sci_message, &entry.ring, &sci_pseudo_output, &sci.mlsag)?;
+
+            signed_inputs.push(SignedInput {
+                ring: entry.ring.clone(),
+                input_rules: entry.input_rules.clone(),
+                pseudo_output: entry.pseudo_output_bytes.clone(),
+                mlsag: sci.mlsag.clone(),
+            });
+        } else {
+            // Filler input: sign with MLSAG over full tx prefix digest
+            let fi = entry.filler_index.unwrap();
+            let input = &filler_inputs[fi];
+
+            let real_pub_key = &input.ring[input.real_index].public_key;
+            let tx_pub = decompress(real_pub_key)?;
+            let shared_secret = (view_private * tx_pub).compress();
+            let hs = hash_to_scalar(ONETIME_KEY_HASH_TO_SCALAR, shared_secret.as_bytes());
+
+            let mut hasher_sub = Blake2b512::new();
+            hasher_sub.update(b"mc_subaddress");
+            hasher_sub.update(view_private.as_bytes());
+            hasher_sub.update(Scalar::from(input.subaddress_index).as_bytes());
+            let hs_sub = Scalar::from_bytes_mod_order_wide(&hasher_sub.finalize().into());
+            let d_i = hs_sub + spend_private;
+            let onetime_scalar = hs + d_i;
+
+            // Derive input blinding from shared secret
+            let mut amount_hasher = Blake2b512::new();
+            amount_hasher.update(AMOUNT_SHARED_SECRET_TAG);
+            amount_hasher.update(shared_secret.as_bytes());
+            let amount_hash = amount_hasher.finalize();
+            let amount_shared_secret = &amount_hash[..32];
+            let hk = Hkdf::<Sha512>::new(Some(AMOUNT_BLINDING_SALT), amount_shared_secret);
+            let mut blinding_bytes = [0u8; 64];
+            hk.expand(AMOUNT_BLINDING_INFO, &mut blinding_bytes)
+                .map_err(|_| JsError::new("HKDF expand failed for input blinding"))?;
+            let input_blinding = Scalar::from_bytes_mod_order_wide(&blinding_bytes);
+
+            let (mlsag_sig, pseudo_output) = sign_mlsag(
+                &mlsag_signing_digest,
+                &input.ring,
+                input.real_index,
+                &onetime_scalar,
+                input.value,
+                &input_blinding,
+                &filler_pseudo_blindings[fi],
+                input.token_id,
+            )?;
+
+            verify_mlsag(
+                &mlsag_signing_digest,
+                &input.ring,
+                &pseudo_output,
+                &mlsag_sig,
+            )?;
+
+            signed_inputs.push(SignedInput {
+                ring: input.ring.clone(),
+                input_rules: None,
+                pseudo_output: pseudo_output.as_bytes().to_vec(),
+                mlsag: mlsag_sig,
+            });
+        }
+    }
+
+    // ── 13. Encode transaction ──
+    let wire_outputs: Vec<super::BuiltTxOut> = outputs
+        .into_iter()
+        .map(|mut o| {
+            o.blinding = Vec::new();
+            o
+        })
+        .collect();
+
+    let tx = BuiltTransaction {
+        inputs: signed_inputs.clone(),
+        outputs: wire_outputs,
+        fee,
+        tombstone_block,
+        tx_prefix_hash: tx_prefix_hash.to_vec(),
+        range_proof,
+    };
+
+    let tx_bytes = encode_tx(&tx);
+
+    // Round-trip verification
+    {
+        let empty_range_proof_bytes: &[u8] = &[];
+        verify_tx_prefix_hash_round_trip(
+            &tx_bytes,
+            &tx_prefix_hash,
+            fee,
+            tombstone_block,
+            &mlsag_signing_digest,
+            &pseudo_output_refs,
+            &input_rules_refs,
+            empty_range_proof_bytes,
+            &range_proofs_vec,
+            &tx.outputs,
+            TOKEN_ID_MOB,
+        )?;
+    }
+
+    let tx_bytes = crate::prost_verify::canonicalize_tx_bytes(&tx_bytes)
+        .map_err(|e| JsError::new(&format!("Prost canonicalization failed: {}", e)))?;
+
+    {
+        let empty_range_proof_bytes: &[u8] = &[];
+        verify_tx_prefix_hash_round_trip(
+            &tx_bytes,
+            &tx_prefix_hash,
+            fee,
+            tombstone_block,
+            &mlsag_signing_digest,
+            &pseudo_output_refs,
+            &input_rules_refs,
+            empty_range_proof_bytes,
+            &range_proofs_vec,
+            &tx.outputs,
+            TOKEN_ID_MOB,
+        )?;
+    }
+
+    let key_images: Vec<Vec<u8>> = signed_inputs
+        .iter()
+        .map(|si| si.mlsag.key_image.clone())
+        .collect();
+
+    let result = TxBuildResult {
+        tx_bytes,
+        tx_prefix_hash: tx_prefix_hash.to_vec(),
+        key_images,
+        confirmation_number: Vec::new(),
     };
 
     Ok(serde_wasm_bindgen::to_value(&result)?)
