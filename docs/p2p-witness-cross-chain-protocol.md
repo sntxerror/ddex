@@ -419,6 +419,183 @@ Because MobileCoin consensus cannot directly verify Ethereum chain state. The wi
 
 ---
 
+## 11A. Validator Selection, Staking, and Penalty Model
+
+This section describes the concrete method by which the P2P swarm selects, incentivizes, and holds accountable the witness nodes that validate cross-chain transactions.
+
+### 11A.1 Automatic witness enrollment
+
+When a user creates or imports an Ethereum wallet alongside their MobileCoin wallet in the ddex app, their client automatically becomes eligible to serve as a P2P oracle and witness node.
+
+No separate signup or approval step is needed. The act of holding both wallet types is sufficient to join the witness-eligible pool, provided the node also meets the staking requirement described below.
+
+### 11A.2 Automatic validation and voting
+
+Client oracle nodes validate events on their respective blockchains and vote automatically when selected for a specific order. The voting process is:
+
+1. the node receives a validation assignment for an order it is not party to,
+2. the node independently queries the relevant chain state using its own RPC connections,
+3. the node evaluates the settlement conditions defined in the order,
+4. the node signs and broadcasts its vote with the result, true or false,
+5. consensus is reached when the threshold is met, for example 3-of-5 or 5-of-9.
+
+This entire flow is automated. The user does not manually approve or reject individual validation tasks.
+
+### 11A.3 Per-order random validator selection
+
+For each cross-chain swap order, the protocol randomly selects a fixed-size validator panel from the pool of eligible witness nodes. The panel size is either 5 or 9 nodes, depending on network size and configuration.
+
+#### Selection rules
+
+- selection uses a verifiable random function seeded by the order id and a recent block hash to prevent manipulation,
+- **a node cannot validate its own transactions**, meaning any order where the node is the maker or taker on either the MOB or ETH side is excluded,
+- a node cannot validate orders where it is a counterparty on any chain leg,
+- nodes must be online and have confirmed liveness within a recent window to be eligible,
+- the selected set is committed on-chain in the escrow contract so all parties can verify the panel.
+
+#### Self-exclusion invariant
+
+> A witness node may only validate orders for other users. It must never be in the validator panel for any quote or order where it holds a trading position.
+
+This prevents a party from approving its own settlement.
+
+### 11A.4 Staking requirement
+
+To be eligible for validator selection, a node must lock a minimum stake. This stake serves two purposes:
+
+1. **penalty collateral**: it guarantees that a dishonest node can be fined,
+2. **participation filter**: it prevents zero-cost Sybil nodes from flooding the eligible pool.
+
+#### Stake mechanics
+
+- the stake is locked in the ETH escrow contract or a dedicated staking contract on the same chain,
+- the locked amount must exceed the maximum penalty for a single dishonest vote,
+- the stake remains locked as long as the node wishes to remain in the eligible witness pool,
+- withdrawal requires a cooldown period during which the node cannot be selected for new orders but must still complete any in-flight validations.
+
+#### Balance verification
+
+Before a node is included in a validator panel, the protocol verifies:
+
+- the node's staking contract balance is sufficient to cover the penalty,
+- and if validator rewards are enabled, the node's locked funds meet the minimum threshold for reward eligibility.
+
+Nodes with insufficient stake are silently skipped during selection.
+
+### 11A.5 On-chain validator commitment
+
+When a cross-chain swap order is created, the escrow smart contract deployed or funded on Ethereum includes the following validator metadata:
+
+- the list of selected validator node addresses (their ETH wallet addresses),
+- the required threshold, for example 3-of-5,
+- the order id and settlement terms,
+- the penalty amount per dishonest vote,
+- and the reward amount per honest vote, if rewards are enabled.
+
+This on-chain commitment makes the validator panel transparent and auditable. It also enables the penalty and reward logic to execute trustlessly through the contract.
+
+### 11A.6 Consensus determination and lie detection
+
+After all selected validators submit their votes, the contract evaluates the result.
+
+#### Successful consensus
+
+If the threshold is met with matching true votes, the order proceeds to settlement and ETH is released.
+
+#### Failed consensus
+
+If the threshold is met with matching false votes, the order is rejected and the escrow refunds the funder.
+
+#### Lie detection
+
+The critical distinction is between **a node that lied** and **a node that failed to respond or responded late**.
+
+| Condition | Classification | Action |
+| --- | --- | --- |
+| Node voted true, consensus is true | honest | no penalty |
+| Node voted false, consensus is false | honest | no penalty |
+| Node voted true, consensus is false, and evidence shows the chain state contradicts the vote | **dishonest** | penalty applied |
+| Node voted false, consensus is true, and evidence shows the chain state contradicts the vote | **dishonest** | penalty applied |
+| Node did not vote within the timeout | **unresponsive** | no penalty, but excluded from reward and marked for liveness scoring |
+| Node voted late after timeout | **late** | vote ignored, no penalty |
+
+#### Penalty-only-on-proof rule
+
+> A node is only penalized when it submits a vote that contradicts verifiable on-chain evidence. Timeouts, latency, and non-responses are never treated as lies.
+
+The escrow contract can verify the on-chain state that was supposed to be validated. If a node voted true on a funding event that did not occur, or false on one that demonstrably did, the contract has sufficient evidence to classify the vote as dishonest.
+
+### 11A.7 Penalty enforcement
+
+When a node is classified as dishonest:
+
+1. the escrow contract or staking contract deducts the penalty amount from the node's locked stake,
+2. the penalty is either burned or redistributed to honest validators,
+3. the node's reputation score is reduced,
+4. after repeated penalties the node may be temporarily or permanently excluded from the eligible pool.
+
+Penalties are enforced on-chain and do not require manual intervention.
+
+### 11A.8 Validator rewards
+
+Two reward models are supported. The choice is a protocol configuration parameter.
+
+#### Model A: no reward
+
+Validators are not compensated. The incentive to participate is indirect:
+
+- the node needs witnesses for its own future trades,
+- network health depends on mutual participation.
+
+This keeps the fee structure simple and avoids adding cost to the SCI orderbook fee.
+
+#### Model B: per-validation fee
+
+Each successful validation earns the honest validators a small fee. This fee is:
+
+- funded from the order spread or an explicit validation fee added to the order,
+- split equally among all honest validators in the panel,
+- paid out through the escrow contract after settlement completes.
+
+This fee directly affects the SCI orderbook cost. It should be calibrated to be small enough to avoid pricing out trades, but large enough to compensate for gas costs and node operation.
+
+#### Reward eligibility
+
+Only nodes that:
+
+- had sufficient locked stake at selection time,
+- voted within the timeout window,
+- and voted honestly,
+
+receive the reward. Unresponsive and late nodes receive nothing.
+
+### 11A.9 Non-custodial guarantee
+
+The entire staking, penalty, and reward mechanism operates without custody:
+
+- the user's wallet keys remain client-side,
+- the staked funds are locked in a smart contract, not held by an operator,
+- penalty deductions are executed by contract logic, not by an admin,
+- reward payouts are executed by contract logic,
+- no party other than the smart contract can access staked funds.
+
+The protocol does not take custody of any user funds at any point. The stake is a voluntary lock that the user can withdraw after cooldown, minus any penalties incurred.
+
+### 11A.10 Summary of the validation lifecycle
+
+1. User creates ETH + MOB wallet in ddex → node becomes witness-eligible.
+2. Node locks minimum stake → node enters the eligible validator pool.
+3. A cross-chain order is created → protocol selects 5 or 9 random validators, excluding the trading parties.
+4. Selected validators are committed on-chain in the escrow contract.
+5. Validators independently verify chain state and submit signed votes.
+6. Threshold consensus is reached → order proceeds or is rejected.
+7. Lie detection compares minority votes against on-chain evidence.
+8. Dishonest nodes are penalized from their locked stake.
+9. Honest nodes receive reward if rewards are enabled.
+10. After settlement, the escrow resolves and all parties can verify the outcome.
+
+---
+
 ## 12. Attack Resistance by Design
 
 ## 12.1 Sybil resistance
