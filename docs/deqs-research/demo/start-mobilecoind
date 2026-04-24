@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+cmd=$(
+cat <<'EOF'
+mobilecoind \
+    --ledger-db /mnt/synced-ledger-db \
+    --poll-interval 10 \
+    --peer mc://node1.prod.mobilecoinww.com/ \
+    --peer mc://node2.prod.mobilecoinww.com/ \
+    --chain-id main \
+    --tx-source-url https://ledger.mobilecoinww.com/node1.prod.mobilecoinww.com/ \
+    --tx-source-url https://ledger.mobilecoinww.com/node2.prod.mobilecoinww.com/ \
+    --mobilecoind-db /usr/local/share/mobilecoind/transaction-db-prod \
+    --fog-ingest-enclave-css /usr/local/share/mobilecoind/ingest-enclave.css \
+    --listen-uri insecure-mobilecoind://127.0.0.1:4444/
+EOF
+)
+
+printf '\033[0;32m%s\033[0m\n' "$cmd"
+
+eval "$cmd"

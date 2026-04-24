@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+cmd=$(
+cat <<'EOF'
+grpcurl -d '' -vv -plaintext \
+  -protoset /usr/local/share/deqs/deqs.protoset \
+  localhost:7000 \
+  deqs.DeqsClientAPI.LiveUpdates
+EOF
+)
+
+printf '\033[0;32m%s\033[0m\n' "$cmd"
+
+eval "$cmd"

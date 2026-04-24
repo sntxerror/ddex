@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+cmd=$(
+cat <<'EOF'
+deqs-liquidity-bot \
+    --deqs insecure-deqs://127.0.0.1:7000 \
+    --base-token-id 0 \
+    --counter-token-id 1 \
+    --swap-rate 2 \
+    --ledger-db /mnt/synced-ledger-db \
+    --account-key /usr/local/share/deqs/key.json \
+    --wallet-db /usr/local/share/deqs/wallet.db \
+    --admin-listen-uri insecure-mca://0.0.0.0:9090/
+EOF
+)
+
+printf '\033[0;32m%s\033[0m\n' "$cmd"
+
+eval "$cmd"

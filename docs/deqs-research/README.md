@@ -138,6 +138,21 @@ To run SCIs for different users, we would have to manage these as separate files
 
 It is important to reiterate, that the current bot mode of operation is to create an SCI for each TxOut owned by the account holder. The bot code can be used for future steps where we would like control about which specific quantity to swap for another coin.
 
+### Demo materials
+
+The scripts used for the `DEQS Liquidity bot demo` are located in the local `demo` folder.
+
+The scripts are located in `/usr/local/bin` folder in the deployment server.
+That makes them accessible through `$PATH`.
+
+To launch the tmux session as seen at the beginning of the demo video run:js
+
+```
+launch-demo
+```
+
+Remember to update the mnemonic inside `/usr/local/share/deqs/key.json` to replicate the demo for a different Mobilecoin wallet.
+
 ### Next steps
 
 To integrate DDEX with DEQS the next steps are:

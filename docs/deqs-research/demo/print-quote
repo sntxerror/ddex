@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+if [ -z "$1" ] || ! [[ "$1" =~ ^[0-9]+$ ]]; then
+    echo "Missing quote index argument." >&2
+    exit 1
+fi
+
+cmd=$(
+cat <<'EOF'
+grpcurl \
+  -plaintext \
+  -emit-defaults \
+  -protoset /usr/local/share/deqs/deqs.protoset \
+  -d '{"pair": {"base_token_id": 0, "counter_token_id": 1}, "limit": 100}' \
+    localhost:7000 deqs.DeqsClientAPI.GetQuotes \
+| jq ".quotes[$1] | del(.sci)"
+EOF
+)
+
+printf '\033[0;32m%s\033[0m\n' "$cmd"
+
+eval "$cmd"

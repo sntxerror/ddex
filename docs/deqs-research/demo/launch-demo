@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# CTRL+b ":set -g mouse on" - For mouse support during the demo, it also actives paging
+
+tmux new-session -d -s liquidity_bot_demo
+
+tmux split-window -h -t liquidity_bot_demo
+
+tmux select-pane -t liquidity_bot_demo:0.0
+tmux split-window -v -t liquidity_bot_demo
+tmux split-window -v -t liquidity_bot_demo
+
+tmux select-pane -t liquidity_bot_demo:0.3
+tmux split-window -v -t liquidity_bot_demo
+
+tmux rename-window -t liquidity_bot_demo "DEQS Liquidity bot demo"
+
+# Top left
+tmux send-keys -t liquidity_bot_demo:0.0 "start-mobilecoind" C-m
+# Middle left
+tmux send-keys -t liquidity_bot_demo:0.1 "start-liquidity-bot" C-m
+# Bottom left
+tmux send-keys -t liquidity_bot_demo:0.2 "start-liveupdates" C-m
+# Top right
+tmux send-keys -t liquidity_bot_demo:0.3 "echo 'count-quotes here'" C-m
+# Bottom right
+tmux send-keys -t liquidity_bot_demo:0.4 "echo 'print-quote here'" C-m
+
+tmux attach -t liquidity_bot_demo
