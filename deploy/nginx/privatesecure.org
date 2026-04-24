@@ -73,28 +73,3 @@ server {
     server_name privatesecure.org www.privatesecure.org;
     return 404;
 }
-
-# --- DEQS proxy on port 7000 (TLS) ---
-server {
-    listen 7000;
-    listen [::]:7000;
-    server_name privatesecure.org www.privatesecure.org;
-
-    # Use a variable so nginx doesn't fail at startup if DNS can't resolve
-    resolver 127.0.0.53 valid=30s;
-    set $deqs_upstream https://ansite.tail9c57b.ts.net:7000;
-
-    # --- Proxy to DEQS deployment ---
-    location / {
-        proxy_pass $deqs_upstream;
-        proxy_ssl_verify off;
-        proxy_http_version 1.1;
-        proxy_set_header Host ansite.tail9c57b.ts.net;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 4m;
-        proxy_read_timeout 120s;
-        proxy_send_timeout 120s;
-    }
-}
